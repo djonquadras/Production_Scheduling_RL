@@ -1,3 +1,34 @@
+from logger import *
+from production import *
+from production.environment import ProductionSystem
+from tensorforce.environments import Environment
+from tensorforce.execution import Runner
+
+# tf.set_random_seed(10)
+
+timesteps = 10 ** 2  # Set time steps per episode
+episodes = 10 ** 2  # Set number of episodes
+
+simulation = Environment.create(environment='production.envs.ProductionSystem',
+                                max_episode_timesteps=timesteps)
+
+# Tensorforce runner
+runner = Runner(agent='rl_config/agent.json',
+                environment = simulation)
+
+simulation.agents = runner.agent
+
+# Run training
+runner.run(num_episodes=episodes)
+
+simulation.environment.statistics.update({'time_end': simulation.environment.env.now})
+
+export_statistics_logging(statistics = simulation.environment.statistics,
+                          parameters = simulation.environment.parameters,
+                          resources = simulation.environment.resources)
+
+
+'''
 from tensorforce.environments import Environment
 from tensorforce.agents import Agent
 import numpy as np
@@ -50,5 +81,5 @@ for _ in range(100):
         actions = agent.act(states=states)
         states, terminal, reward = environment.execute(actions=actions)
         agent.observe(terminal=terminal, reward=reward)
-
+'''
 
