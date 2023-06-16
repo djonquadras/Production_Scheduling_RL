@@ -18,9 +18,11 @@ class Order():
                  prioridade_m1,
                  prioridade_m2,
                  prioridade_m3,
+                 due_date,
                  statistics, parameters):
         self.statistics = statistics
         self.parameters = parameters
+        self.due_date = due_date
         self.env = env
         self.id_material = id_material
         self.tipo_material = tipo_material
@@ -33,61 +35,167 @@ class Order():
         self.prioridade_m1 = prioridade_m1
         self.prioridade_m2 = prioridade_m2
         self.prioridade_m3 = prioridade_m3
-        self.sop = -1
-        self.eop = -1
-        self.time_processing = 0
-        self.time_handling = 0
-        self.actual_step = 0
+        self.sop = 0
+        self.eop = 0
+        self.time_processing = tempo_processamento_m1 + tempo_processamento_m2 + tempo_processamento_m3
         self.finished = False
-        self.current_location = None
-        self.order_log = [["action", "order_ID", "sim_time", "resource_ID"]]
-        self.processed = self.env.event()
-        self.reserved = False
         self.env.process(self.order_processing()) # Process started at creation
+        self.process_now = 0
+        self.remaining_processing_time = tempo_processamento_m1 + tempo_processamento_m2 + tempo_processamento_m3
 
-
-
-    # SOP = start of production
+    
+    '''
+    Function that return the order priorities for each machine considering Dispatching Rules
+    '''
+    def priority(self, rule, processing_time):
+        
+        # Shortest Processing Time (SPT)
+        
+        if rule == 1:
+            return processing_time
+        
+        # Longest Processing Time (LPT)
+        elif rule == 2:
+            return processing_time*(-1)
+        
+        # Least Work Remaining (LWR)
+        elif rule == 3:
+            return self.remaining_processing_time
+        
+        # Most Work Remaining (MWR)
+        elif rule == 4:
+            return self.remaining_processing_time *(-1)
+        
+        # Earliest Due Date (EDD)
+        elif rule == 5:
+            return self.due_date
+        
+        # First in First Out (FIFO)
+        else:
+            return 1
+        
+    
+    '''
+    SOP = start of production
+    '''
     def set_sop(self):  
         self.sop = self.env.now
-        self.statistics['order_sop'][self.id_material] = self.sop
 
-    # EOP = end of production
+    
+    '''
+    EOP = end of production
+    '''
     def set_eop(self):  
         self.eop = self.env.now
-        self.statistics['order_eop'][self.id_material] = self.eop
-        self.statistics['order_leadtime'][self.id_material] = self.eop - self.sop
 
-
+    
+    '''
+    The total waiting time in the system
+    '''
     def get_total_waiting_time(self):
-        result = self.env.now - self.sop - self.time_processing - self.time_handling
+        result = self.eop - (self.sop + self.time_processing)
         return result
+    
+    '''
+    Check if the order is delayed
+    '''
+    def order_delayed(self):
+        if self.due_date < self.env.now:
+            return True
+        else:
+            return False
+    
+    '''
+    Return the total delay time
+    '''
+    def time_delayed(self):
+         if self.order_delayed():
+             return self.eop - self.due_date
+         else:
+             return 0
 
+    '''
+    Return order log
+    '''
+    def return_log(self):
+        order = {"order_id": self.id_material,
+                 "machines_sequence": [self.maquina_step1, self.maquina_step2, self.maquina_step3],
+                 "priorities": [self.prioridade_m1, self.prioridade_m2, self.prioridade_m3],
+                 "sop": self.set_sop,
+                 "eop": self.eop,
+                 "waiting_time": self.get_total_waiting_time(),
+                 "delay_time": self.time_delayed()}
+        return order
+
+    '''
+    Simula o sistema produtivo
+    '''
     def order_processing(self):
         
-        machines = [self.maquina_step1, self.maquina_step2, self.maquina_step3]
+        #Setup Parameters for simulation
+        machines = [self.maquina_step1, self.maquina_step2, self.maquina_step3]             
         priorities = [self.prioridade_m1, self.prioridade_m2, self.prioridade_m3]
         processing_time = [self.tempo_processamento_m1, self.tempo_processamento_m2, self.tempo_processamento_m3]
-        i = 0   
         self.set_sop()
-        print(f"Início do processamento da ordem {self.id_material}")
+        
         while not self.finished:
 
             if self.finished:
-                break
-        
-            with machines[i].machine_env.request(priority = priorities[i]) as req:
+                break            
+
+            # Define a prioridade com base no tipo de dispatch
+            if self.parameters["TIPO_DISPATCHING"] == "dispatching_rule":
+                priority = priority(self, priorities[self.process_now], processing_time[self.process_now])
+            else: 
+                priority = priorities[self.process_now]
+            
+            # Requisita a máquina com a prioridade determinada        
+            with machines[self.process_now].machine_env.request(priority = priority) as req:
                 yield req
+                
+                # Adiciona a ordem nas estatísticas da máquina
+                machines[self.process_now].ordem_producao.append(self.id_material)
+                machines[self.process_now].horarios.append(self.env.now)
+                
                 # Verifica Necessidade de setup
-                machines[i].setup(self.tipo_material)
-                yield self.env.timeout(processing_time[i])
-                machines[i].remaining_usefull_life -= processing_time[i]
-                if machines[i].remaining_usefull_life <= 0:
-                    machines[i].broken = True
-                if i == 2:
+                machines[self.process_now].setup(self.tipo_material)
+                
+                # Começa a produção da ordem
+                yield self.env.timeout(processing_time[self.process_now])
+                
+                # Diminui a vida útil da máquina
+                machines[self.process_now].remaining_usefull_life -= processing_time[self.process_now]
+
+                # Se o tempo útil da máquina acabar, indicar que está quebrada
+                if machines[self.process_now].remaining_usefull_life <= 0:
+                    machines[self.process_now].broken = True
+                    
+                # Verifica se a máquina terá manutenção após o job
+                if self.parameters["TIPO_MANUTENCAO"] == "job-based":
+                    if self.id_material in machines[self.process_now].lista_preventiva_job: 
+                        machines[self.process_now].in_job_preventive = True
+
+                # Diminui o remaining processing time
+                self.remaining_processing_time -= processing_time[self.process_now]
+                
+                # Confere se é a última pare do processo
+                if self.process_now == 2:
+                    
+                    # Adiciona as estatísticas
+                    self.set_eop()
+                    if self.due_date < self.env.now:
+                        self.statistics["delayed_orders"] += 1
+                        
+                    # Indica que a ordem foi finalizada
                     self.finished = True
+                    break
+                
+                # Se não for a última etapa, avança para a próxima
+                self.process_now = self.process_now + 1
                 
 
-        self.set_eop()
-        print(f"Fim do processamento da ordem {self.id_material} - Lead Time: {self.eop - self.sop}")
-        self.statistics['orders_done'].append(self)
+        # Retorna as estatística na etapa final
+        if self.parameters["TERMINAL"]:
+            self.statistics['orders_done'].append(self.return_log(self))
+        
+        

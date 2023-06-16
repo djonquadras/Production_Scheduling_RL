@@ -4,11 +4,11 @@ from tensorforce.environments import Environment
 from tensorforce.execution import Runner
 
 
-#timesteps = 10 ** 2  # Set time steps per episode
-#episodes = 10 ** 2  # Set number of episodes
+#timesteps = 10 ** 3  # Set time steps per episode
+#episodes = 10 ** 3  # Set number of episodes
 
-timesteps = 1  # Set time steps per episode
-episodes = 1 # Set number of episodes
+timesteps = 2  # Set time steps per episode
+episodes = 2 # Set number of episodes
 
 
 environment_production = Environment.create(environment=ProductionEnv,

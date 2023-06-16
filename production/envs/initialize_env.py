@@ -20,7 +20,7 @@ TIPO_MANUTENCAO = "periodic" # Options: "periodic" or "job-based"
 
 PATH_TIME = "log/" + datetime.now().strftime("%Y%m%d_%H%M%S")
 
-def define_production_parameters(env, episode):
+def define_production_parameters(episode):
     """
     Describe production system parameters
     """
@@ -34,9 +34,7 @@ def define_production_parameters(env, episode):
     parameters.update({'TIPO_DISPATCHING': TIPO_DISPATCHING})
     parameters.update({'TIPO_MANUTENCAO': TIPO_MANUTENCAO})
 
-    parameters.update({'stop_criteria': env.event()})
-    parameters.update({'step_criteria': env.event()})
-    parameters.update({'continue_criteria': env.event()})
+
 
     parameters.update(({'EXPONENTIAL_SMOOTHING': 0.01}))  # Default: 0.01
     parameters.update(({'EPSILON': EPSILON}))
@@ -94,6 +92,20 @@ def define_production_statistics(parameters):
     statistics.update({'order_sop': defaultdict(int)})
     statistics.update({'order_eop': defaultdict(int)})
     statistics.update({'order_leadtime': defaultdict(int)})
+    
+    # States
+    statistics.update({"broken_machines": 0})
+    statistics.update({"preventive_maintenance" : 0})
+    statistics.update({"delayed_orders": 0})
+    statistics.update({"maquinas_ocupadas": 0})
+    statistics.update({"reward": 0})
+    
+    statistics.update({"hist_broken_machines": []})
+    statistics.update({"hist_delayed_orders": []})
+    statistics.update({"hist_maquinas_ocupadas": []})
+    statistics.update({"hist_rewards": []})
+    
+    
 
 
     statistics.update({'episode': [[0.0, 0]]})
@@ -104,6 +116,7 @@ def define_production_statistics(parameters):
 
     statistics.update({'sim_start_time': ""})
     statistics.update({'sim_end_time': ""})
+    
 
 
     statistics.update({'orders_done': deque()})
