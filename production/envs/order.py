@@ -19,7 +19,13 @@ class Order():
                  prioridade_m2,
                  prioridade_m3,
                  due_date,
-                 statistics, parameters):
+                 statistics, parameters,
+                 manutencao_job_M1 = False,
+                 manutencao_job_M2 = False,
+                 manutencao_job_M3 = False):
+        self.manutencao_job_M1 = manutencao_job_M1
+        self.manutencao_job_M2 = manutencao_job_M2
+        self.manutencao_job_M3 = manutencao_job_M3
         self.statistics = statistics
         self.parameters = parameters
         self.due_date = due_date
@@ -136,7 +142,10 @@ class Order():
         machines = [self.maquina_step1, self.maquina_step2, self.maquina_step3]             
         priorities = [self.prioridade_m1, self.prioridade_m2, self.prioridade_m3]
         processing_time = [self.tempo_processamento_m1, self.tempo_processamento_m2, self.tempo_processamento_m3]
+        manutencao_jobs = [self.manutencao_job_M1, self.manutencao_job_M2, self.manutencao_job_M3]
         self.set_sop()
+        
+        print(f"Sequencia para {self.id_material}: [{self.maquina_step1.id_maquina} | {self.manutencao_job_M1}, {self.maquina_step2.id_maquina} | {self.manutencao_job_M2}, {self.maquina_step3.id_maquina} | {self.manutencao_job_M1}] - Prioridades: [{round(self.prioridade_m1, 3)}, {round(self.prioridade_m2,3)}, {round(self.prioridade_m3,3)}]")
         
         while not self.finished:
 
@@ -152,6 +161,8 @@ class Order():
             # Requisita a máquina com a prioridade determinada        
             with machines[self.process_now].machine_env.request(priority = priority) as req:
                 yield req
+                
+                #print(f"Produzindo a ordem {self.id_material} na máquina {machines[self.process_now].id_maquina}")
                 
                 # Adiciona a ordem nas estatísticas da máquina
                 machines[self.process_now].ordem_producao.append(self.id_material)
@@ -172,7 +183,7 @@ class Order():
                     
                 # Verifica se a máquina terá manutenção após o job
                 if self.parameters["TIPO_MANUTENCAO"] == "job-based":
-                    if self.id_material in machines[self.process_now].lista_preventiva_job: 
+                    if manutencao_jobs[self.process_now]: 
                         machines[self.process_now].in_job_preventive = True
 
                 # Diminui o remaining processing time

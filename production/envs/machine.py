@@ -13,12 +13,10 @@ class Maquinas():
                  tempo_preventiva,
                  tempo_corretiva,
                  machine_env,
-                 lista_preventiva_job,
                  periodo_manutencao = 999999):
         self.statistics = statistics
         self.parameters = parameters
         self.env = env
-        self.lista_preventiva_job = lista_preventiva_job
         self.id_maquina = id_maquina
         self.broken = False
         self.prev_material_type = None
@@ -29,6 +27,7 @@ class Maquinas():
         self.tempo_corretiva = tempo_corretiva
         self.env.process(self.prev_maintenance()) # Process started at creation
         self.env.process(self.corr_maintenance()) # Process started at creation
+        self.env.process(self.jobs_prev_maintenance()) # Process started at creation
         self.remaining_usefull_life = tempo_vida
         self.tipo_manutencao = self.parameters['TIPO_MANUTENCAO']
         self.machine_env = machine_env
@@ -95,6 +94,7 @@ class Maquinas():
                 # Determina o horário da última manutenção
                 self.horario_ultima_preventiva = self.env.now
 
+
     '''
     Código para Manutenção Corretiva
     '''                 
@@ -102,6 +102,7 @@ class Maquinas():
         
         # Ocorre continuamene
         while True:
+            
             
             # Verifica se a máquina está quebrada
             if self.remaining_usefull_life <= 0:
@@ -129,11 +130,16 @@ class Maquinas():
                     
                     # Atualiza o estado da máquina
                     self.broken = False
+            
+            else:
+                yield self.env.timeout(1)
                     
     '''
     Código para Manutenção Preventiva Baseada em Jobs
     '''        
     def jobs_prev_maintenance(self):
+        
+        
         
         # Ocorre continuamene
         while True:
@@ -141,9 +147,11 @@ class Maquinas():
             # Caso o tipo de manutenção se "periodic", será realizado outro tipo de manutenção    
             if self.tipo_manutencao == "periodic":
                 break
-            
+            temp = self.env.now
             # Aguarda até a manutenção ser invocada
             if self.in_job_preventive:
+                
+                #print(f"Iniciando manutenção com base em jobs: {self.id_maquina}")
                 
                 # Requisita a máquina com uma prioridade que coloque na frente da fila
                 with self.machine_env.request(priority = -9999998) as req:
@@ -162,3 +170,8 @@ class Maquinas():
                     
                     # Determina o horário da última manutenção
                     self.horario_ultima_preventiva = self.env.now
+                    
+                    # Tira do Status de Manutenção Preventiva
+                    self.in_job_preventive = False
+            else:
+                yield self.env.timeout(1)

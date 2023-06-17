@@ -1,11 +1,10 @@
 import random
 from collections import deque
-from production.envs.resources import *
+
 from production.envs.machine import *
 from production.envs.simulation import *
 import numpy as np
 import pandas as pd
-import statistics
 from datetime import datetime
 from collections import Counter
 from collections import defaultdict 
@@ -15,8 +14,9 @@ EPSILON = 0.000001  # Small number larger than zero used as "marginal" time step
 EXPORT_FREQUENCY = 10 ** 3  # Number of steps between csv-export of log-files
 EXPORT_NO_LOGS = False  # Turn on/off export of log-files
 
+NUM_DISPATCHING_RULES = 6
 TIPO_DISPATCHING = "rule-free" # Options: "rule-free" or "dispatching_rule"
-TIPO_MANUTENCAO = "periodic" # Options: "periodic" or "job-based"
+TIPO_MANUTENCAO = "job-based" # Options: "periodic" or "job-based"
 
 PATH_TIME = "log/" + datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -31,6 +31,7 @@ def define_production_parameters(episode):
 
     parameters.update({'time_end': 0.0})
     
+    parameters.update({'NUM_DISPATCHING_RULES': NUM_DISPATCHING_RULES})
     parameters.update({'TIPO_DISPATCHING': TIPO_DISPATCHING})
     parameters.update({'TIPO_MANUTENCAO': TIPO_MANUTENCAO})
 
@@ -67,7 +68,7 @@ def define_production_parameters(episode):
     # Total number of machines in the machine shop
     parameters.update({'NUM_MACHINES': parameters['NUM_MACHINES_1_STAGE'] + parameters['NUM_MACHINES_2_STAGE'] + parameters['NUM_MACHINES_3_STAGE']})
 
-
+    parameters.update({"TERMINAL": False})
 
 
 
@@ -100,10 +101,11 @@ def define_production_statistics(parameters):
     statistics.update({"maquinas_ocupadas": 0})
     statistics.update({"reward": 0})
     
-    statistics.update({"hist_broken_machines": []})
-    statistics.update({"hist_delayed_orders": []})
-    statistics.update({"hist_maquinas_ocupadas": []})
-    statistics.update({"hist_rewards": []})
+    statistics.update({"broken_machines_log": []})
+    statistics.update({"delayed_orders_log": []})
+    statistics.update({"maquinas_ocupadas_log": []})
+    statistics.update({"rewards_log": []})
+    statistics.update({"preventive_maintenance_log": []})
     
     
 
