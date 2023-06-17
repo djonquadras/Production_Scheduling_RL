@@ -28,8 +28,8 @@ class Maquinas():
         self.tempo_preventiva = tempo_preventiva
         self.tempo_corretiva = tempo_corretiva
         self.env.process(self.prev_maintenance()) # Process started at creation
-        self.env.process(self.corr_maintenance()) # Process started at creation
-        self.env.process(self.jobs_prev_maintenance()) # Process started at creation
+#        self.env.process(self.corr_maintenance()) # Process started at creation
+#        self.env.process(self.jobs_prev_maintenance()) # Process started at creation
         self.remaining_usefull_life = tempo_vida
         self.tipo_manutencao = self.parameters['TIPO_MANUTENCAO']
         self.machine_env = machine_env
@@ -102,78 +102,51 @@ class Maquinas():
     '''                 
     def corr_maintenance(self):
         
-        # Ocorre continuamene
-        while True:
+        # Atualiza a estatística de máquinas quebradas
+        self.statistics["broken_machines"] += 1
+        
+        # Requisita a máquina com uma prioridade que coloque na frente da fila
+        with self.machine_env.request(priority = -9999999) as req:
+            yield req
             
+            # Salva as estatísticas da manutenção
+            self.ordem_producao.append("Corretiva")
+            self.horarios.append(self.env.now)
             
-            # Verifica se a máquina está quebrada
-            if self.remaining_usefull_life <= 0:
-                self.broken = True
+            # Realiza a manutenção
+            yield self.env.timeout(self.tempo_corretiva)
             
-            # Se a máquina quebrar
-            if self.broken:
-                
-                # Atualiza a estatística de máquinas quebradas
-                self.statistics["broken_machines"] += 1
-                
-                # Requisita a máquina com uma prioridade que coloque na frente da fila
-                with self.machine_env.request(priority = -9999999) as req:
-                    yield req
-                    
-                    # Salva as estatísticas da manutenção
-                    self.ordem_producao.append("Corretiva")
-                    self.horarios.append(self.env.now)
-                    
-                    # Realiza a manutenção
-                    yield self.env.timeout(self.tempo_corretiva)
-                    
-                    # Atualiza o tempo de vida restante
-                    self.remaining_usefull_life = self.tempo_vida
-                    
-                    # Atualiza o estado da máquina
-                    self.broken = False
+            # Atualiza o tempo de vida restante
+            self.remaining_usefull_life = self.tempo_vida
             
-            else:
-                yield self.env.timeout(self.remaining_usefull_life)
+            # Atualiza o estado da máquina
+            self.broken = False
+    
+
                     
     '''
     Código para Manutenção Preventiva Baseada em Jobs
     '''        
     def jobs_prev_maintenance(self):
         
-        
-        
-        # Ocorre continuamene
-        while True:
             
-            # Caso o tipo de manutenção se "periodic", será realizado outro tipo de manutenção    
-            if self.tipo_manutencao == "periodic":
-                break
-            temp = self.env.now
-            # Aguarda até a manutenção ser invocada
-            if self.in_job_preventive:
-                
-                #print(f"Iniciando manutenção com base em jobs: {self.id_maquina}")
-                
-                # Requisita a máquina com uma prioridade que coloque na frente da fila
-                with self.machine_env.request(priority = -9999998) as req:
-                    yield req
-                    
-                    # Salva as estatísticas da manutenção
-                    self.statistics["preventive_maintenance"] += 1
-                    self.ordem_producao.append("Preventiva")
-                    self.horarios.append(self.env.now)
-                    
-                    # Realiza a manutenção
-                    yield self.env.timeout(self.tempo_preventiva)
-                    
-                    # Atualiza o tempo de vida restante
-                    self.remaining_usefull_life = self.tempo_vida
-                    
-                    # Determina o horário da última manutenção
-                    self.horario_ultima_preventiva = self.env.now
-                    
-                    # Tira do Status de Manutenção Preventiva
-                    self.in_job_preventive = False
-            else:
-                yield self.env.timeout(1)
+        # Requisita a máquina com uma prioridade que coloque na frente da fila
+        with self.machine_env.request(priority = -9999998) as req:
+            yield req
+            
+            # Salva as estatísticas da manutenção
+            self.statistics["preventive_maintenance"] += 1
+            self.ordem_producao.append("Preventiva")
+            self.horarios.append(self.env.now)
+            
+            # Realiza a manutenção
+            yield self.env.timeout(self.tempo_preventiva)
+            
+            # Atualiza o tempo de vida restante
+            self.remaining_usefull_life = self.tempo_vida
+            
+            # Determina o horário da última manutenção
+            self.horario_ultima_preventiva = self.env.now
+            
+            # Tira do Status de Manutenção Preventiva
+            self.in_job_preventive = False

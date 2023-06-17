@@ -236,12 +236,12 @@ class Order():
 
                 # Se o tempo útil da máquina acabar, indicar que está quebrada
                 if machines[self.process_now].remaining_usefull_life <= 0:
-                    machines[self.process_now].broken = True
+                    self.env.process(machines[self.process_now].corr_maintenance())
                     
                 # Verifica se a máquina terá manutenção após o job
                 if self.parameters["TIPO_MANUTENCAO"] == "job-based":
                     if manutencao_jobs[self.process_now]: 
-                        machines[self.process_now].in_job_preventive = True
+                        self.env.process(machines[self.process_now].jobs_prev_maintenance())
 
                 # Diminui o remaining processing time
                 self.remaining_processing_time -= processing_time[self.process_now]

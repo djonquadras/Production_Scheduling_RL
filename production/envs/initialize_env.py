@@ -19,7 +19,7 @@ NUM_MACHINES_1_STAGE = 60
 NUM_MACHINES_2_STAGE = 2
 NUM_MACHINES_3_STAGE = 3
 TIPO_DISPATCHING = "rule-free" # Options: "rule-free" or "rule-based"
-TIPO_MANUTENCAO = "periodic" # Options: "periodic" or "job-based"
+TIPO_MANUTENCAO = "job-based" # Options: "periodic" or "job-based"
 
 PATH_TIME = "log/" + datetime.now().strftime("%Y%m%d_%H%M%S")
 

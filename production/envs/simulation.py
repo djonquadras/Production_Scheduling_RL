@@ -223,10 +223,10 @@ class ProductionEnv(Environment):
             
     def calcula_reward(self):
         reward = 0
-        reward = -2*self.statistics["broken_machines"]
-        reward = -2*self.statistics["delayed_orders"]
-        reward = -1*self.statistics["maquinas_ocupadas"]
-        reward = -1*self.statistics["preventive_maintenance"]
+        reward += -2*self.statistics["broken_machines"]
+        reward += -2*self.statistics["delayed_orders"]
+        reward += -1*self.statistics["maquinas_ocupadas"]
+        reward += -1*self.statistics["preventive_maintenance"]
         self.statistics["reward"] = reward
         return reward
     
@@ -282,7 +282,13 @@ class ProductionEnv(Environment):
         print(f"states = {states}")
         
         
-        self.env = 0
+        self.env = None
+        self.lista_maquinas = None
+        self.lista_ordens = None
+        
+        self.lista_maquinas = []
+        self.lista_ordens = []
+        
         return states, terminal, reward
 
 
