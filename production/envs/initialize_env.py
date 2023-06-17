@@ -15,8 +15,11 @@ EXPORT_FREQUENCY = 10 ** 3  # Number of steps between csv-export of log-files
 EXPORT_NO_LOGS = False  # Turn on/off export of log-files
 
 NUM_DISPATCHING_RULES = 6
-TIPO_DISPATCHING = "rule-free" # Options: "rule-free" or "dispatching_rule"
-TIPO_MANUTENCAO = "job-based" # Options: "periodic" or "job-based"
+NUM_MACHINES_1_STAGE = 60
+NUM_MACHINES_2_STAGE = 2
+NUM_MACHINES_3_STAGE = 3
+TIPO_DISPATCHING = "rule-free" # Options: "rule-free" or "rule-based"
+TIPO_MANUTENCAO = "periodic" # Options: "periodic" or "job-based"
 
 PATH_TIME = "log/" + datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -34,6 +37,7 @@ def define_production_parameters(episode):
     parameters.update({'NUM_DISPATCHING_RULES': NUM_DISPATCHING_RULES})
     parameters.update({'TIPO_DISPATCHING': TIPO_DISPATCHING})
     parameters.update({'TIPO_MANUTENCAO': TIPO_MANUTENCAO})
+    parameters.update({"MACHINES": []})
 
 
 
@@ -41,6 +45,7 @@ def define_production_parameters(episode):
     parameters.update(({'EPSILON': EPSILON}))
     parameters.update(({'PRINT_CONSOLE': PRINT_CONSOLE}))
     parameters.update(({'EXPORT_NO_LOGS': EXPORT_NO_LOGS}))
+    
 
     parameters.update(({'PATH_TIME': PATH_TIME}))
     parameters.update(({'EXPORT_FREQUENCY': EXPORT_FREQUENCY}))
@@ -57,13 +62,14 @@ def define_production_parameters(episode):
     parameters.update({'AGENT_REWARD_OBJECTIVE_WEIGHTS': {'utilization': 1.0, 'waiting_time': 1.0}})
     
     # Number of machines in the 1st stage of the machine shop
-    parameters.update({'NUM_MACHINES_1_STAGE': 60})
+    parameters.update({'NUM_MACHINES_1_STAGE': NUM_MACHINES_1_STAGE})
     
     # Number of machines in the 2nd stage of the machine shop  
-    parameters.update({'NUM_MACHINES_2_STAGE':  2})
+    parameters.update({'NUM_MACHINES_2_STAGE':  NUM_MACHINES_2_STAGE})
     
     # Number of machines in the 3rd stage of the machine shop  
-    parameters.update({'NUM_MACHINES_3_STAGE':  3})  
+    parameters.update({'NUM_MACHINES_3_STAGE':  NUM_MACHINES_3_STAGE})
+    parameters.update({"NUM_MACHINES": NUM_MACHINES_1_STAGE + NUM_MACHINES_2_STAGE + NUM_MACHINES_3_STAGE})  
     
     # Total number of machines in the machine shop
     parameters.update({'NUM_MACHINES': parameters['NUM_MACHINES_1_STAGE'] + parameters['NUM_MACHINES_2_STAGE'] + parameters['NUM_MACHINES_3_STAGE']})

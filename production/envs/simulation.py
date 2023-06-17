@@ -48,18 +48,20 @@ class ProductionEnv(Environment):
         #INCLUIR lista_preventiva_job
         
         id_maquina = self.dataset_maquinas["id_maquina"]
-        tempo_vida = self.dataset_maquinas["tempo_vida"]
         tempo_corretiva = self.dataset_maquinas["tempo_corretiva"]
         tempo_preventiva = self.dataset_maquinas["tempo_preventiva"]
         periodo_manutencao =[]
+        
+        dispatching_rule = []
+        if self.parameters["TIPO_DISPATCHING"] == "rule-based":
+            dispatching_rule = actions["DR_Maquinas"]
+        else:
+            dispatching_rule = [0]*self.parameters['NUM_MACHINES']
         
         if self.parameters["TIPO_MANUTENCAO"] == "periodic":
             periodo_manutencao = actions["periodo_manutencao"]
         else:
             periodo_manutencao = [0] *65
-                       
-            
-            
         
         
         for index, maquina in enumerate(id_maquina):
@@ -72,12 +74,11 @@ class ProductionEnv(Environment):
                                                 tempo_preventiva = tempo_preventiva[index],
                                                 tempo_corretiva = tempo_corretiva[index],
                                                 machine_env = simpy.PriorityResource(self.env),
-                                                periodo_manutencao = int(periodo_manutencao[index])))
+                                                periodo_manutencao = int(periodo_manutencao[index]),
+                                                dispatching_rule = dispatching_rule[index]))
         
-        #print("Todas as Máquinas Criadas!")
-        #print("")
-        #print("")
-        #print("")    
+        self.parameters["MACHINES"] = self.lista_maquinas
+          
     
     def calcula_estados(self):
         return[float(self.statistics["broken_machines"]),
@@ -96,14 +97,38 @@ class ProductionEnv(Environment):
         tempo_processamento_maquina2 = self.dataset_ordens["tempo_processamento_maquina2"]
         tempo_processamento_maquina3 = self.dataset_ordens["tempo_processamento_maquina3"]
         due_date = self.dataset_ordens["due_date"]
-        
+
+        NUM_1 = self.parameters["NUM_MACHINES_1_STAGE"]
+        NUM_2 = self.parameters["NUM_MACHINES_1_STAGE"] + self.parameters["NUM_MACHINES_2_STAGE"]
+        NUM_3 = self.parameters["NUM_MACHINES_1_STAGE"] + self.parameters["NUM_MACHINES_2_STAGE"] + self.parameters["NUM_MACHINES_3_STAGE"]
+
+            
+            
         # Seleciona os parâmetros das ações
-        maquina_step1 = actions["selecao_maquinas1"]
-        maquina_step2 = actions["selecao_maquinas2"]
-        maquina_step3 = actions["selecao_maquinas3"]
-        prioridade_m1 = actions["prioridade_M1"]
-        prioridade_m2 = actions["prioridade_M2"]
-        prioridade_m3 = actions["prioridade_M3"]
+
+        maquina_step1 = []
+        maquina_step2 = []
+        maquina_step3 = []
+        prioridade_m1 = []
+        prioridade_m2 = []
+        prioridade_m3 = []
+        maquinas_operando = 0
+        
+        if self.parameters["TIPO_DISPATCHING"] == "rule-free":
+            prioridade_m1 = actions["prioridades"][:self.parameters["qnt_orders"]]
+            prioridade_m2 = actions["prioridades"][self.parameters["qnt_orders"] : self.parameters["qnt_orders"]*2]
+            prioridade_m3 = actions["prioridades"][self.parameters["qnt_orders"]*2 : self.parameters["qnt_orders"]*3]
+            maquina_step1 = actions["selecao_maquinas1"]
+            maquina_step2 = actions["selecao_maquinas2"]
+            maquina_step3 = actions["selecao_maquinas3"]
+            maquinas_operando = len(pd.DataFrame({"b": actions["selecao_maquinas1"]})["b"].unique())
+        else:        
+            maquinas_operando = actions["Operating_Machines"][0]
+            maquina_step1 = [maquinas_operando]*self.parameters["qnt_orders"]
+            maquina_step2 = [maquinas_operando]*self.parameters["qnt_orders"]
+            maquina_step3 = [maquinas_operando]*self.parameters["qnt_orders"]
+
+        
         
         # Cria as listas de preventivas, para caso de manutenção job-based
         lista_preventiva_job_stage1 = []
@@ -112,31 +137,56 @@ class ProductionEnv(Environment):
         
         # Caso seja job-based, alimenta as listas
         if self.parameters["TIPO_MANUTENCAO"] == "job-based":
-            lista_preventiva_job_stage1 = actions["prev_maint_job_M1"]
-            lista_preventiva_job_stage2 = actions["prev_maint_job_M2"]
-            lista_preventiva_job_stage3 = actions["prev_maint_job_M3"]
+            lista_preventiva_job_stage1 = actions["prev_maint_job"][:self.parameters["qnt_orders"]]
+            lista_preventiva_job_stage2 = actions["prev_maint_job"][self.parameters["qnt_orders"] : self.parameters["qnt_orders"]*2]
+            lista_preventiva_job_stage3 = actions["prev_maint_job"][self.parameters["qnt_orders"]*2 : self.parameters["qnt_orders"]*3]
         else:
             lista_preventiva_job_stage1 = [False] * self.parameters["qnt_orders"]
             lista_preventiva_job_stage2 = [False] * self.parameters["qnt_orders"]
             lista_preventiva_job_stage3 = [False] * self.parameters["qnt_orders"]
             
                     
-        self.statistics["maquinas_ocupadas"] = len(pd.DataFrame({"b": actions["selecao_maquinas1"]})["b"].unique())
+        self.statistics["maquinas_ocupadas"] = maquinas_operando
         
         for index, ordem in enumerate(id_material):
-            #print(f"Criando Ordem {ordem}")
+            
+            maquina_step1a = 0
+            maquina_step2a = 0
+            maquina_step3a = 0
+            prioridade_m1a = 0
+            prioridade_m2a = 0 
+            prioridade_m3a = 0
+            
+            if self.parameters["TIPO_DISPATCHING"] == "rule-free":
+
+                maquina_step1a = self.lista_maquinas[int(maquina_step1[index])]
+                maquina_step2a = self.lista_maquinas[60 + int(maquina_step2[index])]
+                maquina_step3a = self.lista_maquinas[62 + int(maquina_step3[index])]
+                prioridade_m1a = float(prioridade_m1[index])
+                prioridade_m2a = float(prioridade_m2[index])
+                prioridade_m3a = float(prioridade_m3[index])
+
+            else:        
+
+                maquina_step1a = maquinas_operando
+                maquina_step2a = maquinas_operando
+                maquina_step3a = maquinas_operando        
+                prioridade_m1a = maquinas_operando
+                prioridade_m2a = maquinas_operando
+                prioridade_m3a = maquinas_operando
+            
             self.lista_ordens.append(Order(self.env,
                                            id_material = ordem,
                                            tipo_material = tipo_material[index],
                                            tempo_processamento_m1 = tempo_processamento_maquina1[index],
                                            tempo_processamento_m2 = tempo_processamento_maquina2[index],
                                            tempo_processamento_m3 = tempo_processamento_maquina3[index],
-                                           maquina_step1 = self.lista_maquinas[int(maquina_step1[index])],
-                                           maquina_step2 = self.lista_maquinas[60 + int(maquina_step2[index])],
-                                           maquina_step3 = self.lista_maquinas[62 + int(maquina_step3[index])],
-                                           prioridade_m1 = float(prioridade_m1[index]),
-                                           prioridade_m2 = float(prioridade_m2[index]),
-                                           prioridade_m3 = float(prioridade_m3[index]),
+                                           maquina_step1 = maquina_step1a,
+                                           maquina_step2 = maquina_step2a,
+                                           maquina_step3 = maquina_step3a,
+                                           prioridade_m1 = prioridade_m1a,
+                                           prioridade_m2 = prioridade_m2a,
+                                           prioridade_m3 = prioridade_m3a,
                                            due_date = due_date[index],
                                            statistics = self.statistics,
                                            parameters= self.parameters,
@@ -144,10 +194,6 @@ class ProductionEnv(Environment):
                                            manutencao_job_M2 = lista_preventiva_job_stage2[index],
                                            manutencao_job_M3 = lista_preventiva_job_stage3[index]))
             
-        #print("Todas as Ordens Criadas!")
-        #print("")
-        #print("")
-        #print("")
         
     def states(self):
         return {"type":'float',
@@ -213,10 +259,10 @@ class ProductionEnv(Environment):
         self.env.run(until = 10200)
         
         
-        for maquina in self.lista_maquinas:
-            print(f" Máquina {maquina.id_maquina} = {maquina.ordem_producao}")
-            print("")
-            print("")
+        #for maquina in self.lista_maquinas:
+        #    print(f" Máquina {maquina.id_maquina} = {maquina.ordem_producao}")
+        #    print("")
+        #    print("")
         print("<------------------------ Fim da Execução ------------------------>")        
         
         
@@ -240,48 +286,6 @@ class ProductionEnv(Environment):
         return states, terminal, reward
 
 
-    '''
-    Função Obrigatória para o Reinforcement Learning.
-    Com base nela o agente cria as ações do modelo.
-    
-    def actions(self):
-        
-        # Cria o dicionário das ações. FORMATO MANDATÓRIO 
-        actions = {}
-        actions.update({"selecao_maquinas1": {"type":'int',
-											  "shape": self.parameters["qnt_orders"],
-											  "num_values": self.parameters['NUM_MACHINES_1_STAGE']}})
-
-		# Seleciona as máquinas do segundo estágio para cada ordem
-        actions.update({"selecao_maquinas2": {"type":'int',
-											  "shape": self.parameters["qnt_orders"],
-											  "num_values": self.parameters['NUM_MACHINES_2_STAGE']}})
-
-		# Seleciona as máquinas do terceiro estágio para cada ordem
-        actions.update({"selecao_maquinas3": {"type":'int',
-											  "shape": self.parameters["qnt_orders"],
-											  "num_values": self.parameters['NUM_MACHINES_3_STAGE']}})
-		
-		# Seleciona as prioridades no primeiro estágio para cada ordem        
-        actions.update({"prioridade_M1":   {"type":'float',
-											"shape": self.parameters["qnt_orders"]}})
-
-		# Seleciona as prioridades no segundo estágio para cada ordem
-        actions.update({"prioridade_M2":   {"type":'float',
-											"shape": self.parameters["qnt_orders"]}})
-
-		# Seleciona as prioridades no terceiro estágio para cada ordem
-        actions.update({"prioridade_M3":   {"type":'float',
-											"shape": self.parameters["qnt_orders"]}})
-	
-
-	
-        actions.update({"periodo_manutencao":   {"type":'int',
-												"num_values": 30,
-												"shape": self.parameters["qnt_machines"]}})
-
-        return actions
-    '''        
 
     '''
     Função Obrigatória para o Reinforcement Learning.
@@ -294,32 +298,23 @@ class ProductionEnv(Environment):
         
         # Se o tipo de Dispatching for "rule-based"
         if self.parameters["TIPO_DISPATCHING"] == "rule-based":
-        
-            # Seleciona as regras de despacho para as máquinas do primeiro estágio
-            actions.update({"DR_M1": {"type":'int',
-                                      "shape": self.parameters['NUM_MACHINES_1_STAGE'],
-                                      "num_values": self.parameters['NUM_DISPATCHING_RULES']}})
-
-            # Seleciona as regras de despacho para as máquinas do segundo estágio
-            actions.update({"DR_M2": {"type":'int',
-                                      "shape": self.parameters['NUM_MACHINES_2_STAGE'],
-                                      "num_values": self.parameters['NUM_DISPATCHING_RULES']}})
             
-            # Seleciona as regras de despacho para as máquinas do terceiro estágio
-            actions.update({"DR_M3": {"type":'int',
-                                      "shape": self.parameters['NUM_MACHINES_3_STAGE'],
-                                      "num_values": self.parameters['NUM_DISPATCHING_RULES']}})
+            # Seleciona as regras de despacho para as máquinas
+            actions.update({"DR_Maquinas": {"type":'int',
+                                            "shape": self.parameters['NUM_MACHINES'],
+                                            "num_values": self.parameters['NUM_DISPATCHING_RULES']}})
+
             
             # Determina a quantidade de máquinas operando no primeiro estágio
-            actions.update({"NUM_M1": {"type":'int',
-                                      "shape": 1,
-                                      "num_values": self.parameters['NUM_MACHINES_1_STAGE']}})
+            actions.update({"Operating_Machines": {"type":'int',
+                                                   "shape": 1,
+                                                   "num_values": self.parameters['NUM_MACHINES_1_STAGE']}})
             
         
         # Se o tipo de Dispatching for "rule-free"
         else:
             
-            # Seleciona as máquinas do primeiro estágio para cada ordem
+            # Seleciona as máquinas para produção
             actions.update({"selecao_maquinas1": {"type":'int',
                                                   "shape": self.parameters["qnt_orders"],
                                                   "num_values": self.parameters['NUM_MACHINES_1_STAGE']}})
@@ -334,32 +329,17 @@ class ProductionEnv(Environment):
                                                   "shape": self.parameters["qnt_orders"],
                                                   "num_values": self.parameters['NUM_MACHINES_3_STAGE']}})
             
-            # Seleciona as prioridades no primeiro estágio para cada ordem        
-            actions.update({"prioridade_M1":   {"type":'float',
-                                                "shape": self.parameters["qnt_orders"]}})
+            # Seleciona as prioridades em cada máquina        
+            actions.update({"prioridades":  {"type":'float',
+                                             "shape": self.parameters["qnt_orders"]*3}})
 
-            # Seleciona as prioridades no segundo estágio para cada ordem
-            actions.update({"prioridade_M2":   {"type":'float',
-                                                "shape": self.parameters["qnt_orders"]}})
-
-            # Seleciona as prioridades no terceiro estágio para cada ordem
-            actions.update({"prioridade_M3":   {"type":'float',
-                                                "shape": self.parameters["qnt_orders"]}})
         
         # Se o Tipo de Manutenção for baseado em jobs
         if self.parameters["TIPO_MANUTENCAO"] == "job-based":
             
-            # Determina se haverá manutenção após cada job no primeiro estágio
-            actions.update({"prev_maint_job_M1": {"type":'bool',
-                                                  "shape": self.parameters["qnt_orders"]}})
-
-            # Determina se haverá manutenção após cada job no segundo estágio
-            actions.update({"prev_maint_job_M2": {"type":'bool',
-                                                  "shape": self.parameters["qnt_orders"]}})
-            
-            # Determina se haverá manutenção após cada job no terceiro estágio
-            actions.update({"prev_maint_job_M3": {"type":'bool',
-                                                  "shape": self.parameters["qnt_orders"]}})
+            # Determina se haverá manutenção após cada job
+            actions.update({"prev_maint_job": {"type":'bool',
+                                               "shape": self.parameters["qnt_orders"]*3}})
         
         # Se a manutenção for periódica    
         else: 

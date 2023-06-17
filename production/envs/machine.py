@@ -13,7 +13,9 @@ class Maquinas():
                  tempo_preventiva,
                  tempo_corretiva,
                  machine_env,
+                 dispatching_rule = 0,
                  periodo_manutencao = 999999):
+        self.dispatching_rule = dispatching_rule
         self.statistics = statistics
         self.parameters = parameters
         self.env = env
@@ -132,7 +134,7 @@ class Maquinas():
                     self.broken = False
             
             else:
-                yield self.env.timeout(1)
+                yield self.env.timeout(self.remaining_usefull_life)
                     
     '''
     Código para Manutenção Preventiva Baseada em Jobs
