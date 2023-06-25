@@ -13,7 +13,7 @@ timesteps = 100  # Set time steps per episode
 #episodes = 10 ** 3  # Set number of episodes
 
 #timesteps = 2  # Set time steps per episode
-episodes = 1000 # Set number of episodes
+episodes = 100 # Set number of episodes
 
 logging.info(f'Time Steps: {timesteps}')
 logging.info(f'Episodes: {episodes}')

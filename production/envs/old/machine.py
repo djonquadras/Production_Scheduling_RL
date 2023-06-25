@@ -50,12 +50,10 @@ class Maquinas():
     def calc_MTTR(self):
         qnt_reparos = self.qnt_preventivas + self.qnt_corretivas
         if qnt_reparos == 0:
-            self.statistics["mttr_log"][self.id_maquina].append(0)
             return 0
         tempo_total = self.parameters["MIN_SIMULATION"]
         mttr = tempo_total/qnt_reparos
         self.mttr = mttr
-        self.statistics["mttr_log"][self.id_maquina].append(mttr)
         return mttr
         
     '''
@@ -64,12 +62,10 @@ class Maquinas():
     def calc_MTTF(self):
         qnt_quebras = self.qnt_corretivas
         if qnt_quebras == 0:
-            self.statistics["mttf_log"][self.id_maquina].append(0)
             return 0
         tempo_total = self.parameters["MIN_SIMULATION"]
         mttf = tempo_total/qnt_quebras
         self.mttf = mttf
-        self.statistics["mttf_log"][self.id_maquina].append(mttf)
         return mttf
     
     '''
@@ -78,7 +74,24 @@ class Maquinas():
     def set_new_material_tipe(self, new_type):
         self.prev_material_type = new_type
 
-
+    '''
+    Setup para produção de ordens diferentes
+    '''
+    def setup(self, new_type):
+        
+        # Caso o tipo da ordem anterior seja diferente do tipo atual
+        if self.prev_material_type != new_type:
+            
+            # Adiciona as estatísticas de setup
+            self.ordem_producao.append("Setup")
+            self.horarios.append(self.env.now)
+            self.qnt_setup += 1
+            
+            # Realiza o setup
+            yield self.env.timeout(self.tempo_setup)
+            
+            # Atualiza o tipo de material anterior
+            self.set_new_material_tipe(new_type)
     
     
     '''
@@ -94,7 +107,7 @@ class Maquinas():
                 break
             
             # Aguarda até o momento da próxima manutenção
-            yield self.env.timeout(self.periodo_manutencao)
+            yield self.env.timeout(self.periodo_manutencao*24*60)
             
             # Requisita a máquina com uma prioridade que coloque na frente da fila
             with self.machine_env.request(priority = -9999998) as req:

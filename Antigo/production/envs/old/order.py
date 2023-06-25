@@ -155,9 +155,6 @@ class Order():
                  "delay_time": self.time_delayed()}
         return order
 
-
-           
-            
     '''
     Simula o sistema produtivo
     '''
@@ -242,21 +239,8 @@ class Order():
                 machines[self.process_now].ordem_producao.append(self.id_material)
                 machines[self.process_now].horarios.append(self.env.now)
                 
-                        
-                # Caso o tipo da ordem anterior seja diferente do tipo atual
-                if machines[self.process_now].prev_material_type != self.tipo_material:
-                    
-                    # Adiciona as estatísticas de setup
-                    machines[self.process_now].ordem_producao.append("Setup")
-                    machines[self.process_now].horarios.append(self.env.now)
-                    machines[self.process_now].qnt_setup += 1
-                    self.statistics["qnt_setups"] += 1
-                    
-                    # Realiza o setup
-                    yield self.env.timeout(machines[self.process_now].tempo_setup)
-                    
-                    # Atualiza o tipo de material anterior
-                    machines[self.process_now].set_new_material_tipe(self.tipo_material)
+                # Verifica Necessidade de setup
+                machines[self.process_now].setup(self.tipo_material)
                 
                 # Começa a produção da ordem
                 yield self.env.timeout(processing_time[self.process_now])

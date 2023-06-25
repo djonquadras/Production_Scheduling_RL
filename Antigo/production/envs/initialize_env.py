@@ -18,11 +18,11 @@ NUM_DISPATCHING_RULES = 6
 NUM_MACHINES_1_STAGE = 59
 NUM_MACHINES_2_STAGE = 3
 NUM_MACHINES_3_STAGE = 4
-TIPO_DISPATCHING = "rule-free" # Options: "rule-free" or "rule-based"
+TIPO_DISPATCHING = "rule-based" # Options: "rule-free" or "rule-based"
 TIPO_MANUTENCAO = "periodic" # Options: "periodic" or "job-based"
 
-MIN_SIMULATION = 28*24
-EPISODES = 100
+MIN_SIMULATION = 720
+EPISODES = 1000
 
 
 PATH_TIME = "log/" + datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -58,7 +58,7 @@ def define_production_parameters(episode):
 
 
     # In this setting the RL-agent (TRPO-Algorithm) is controlling the transport decision making
-    parameters.update({'AGENT_TYPE': "PPO"})  # Alternativen: TRPO, FIFO, NJF, EMPTY
+    parameters.update({'AGENT_TYPE': "TRPO"})  # Alternativen: TRPO, FIFO, NJF, EMPTY
     parameters.update({'AGENT_REWARD': "utilization"})  # Alternatives: valid_action, utilization, waiting_time_normalized, throughput, conwip, const_weighted, weighted_objectives
     parameters.update({'AGENT_REWARD_SPARSE': ""})  # Alternatives: valid_action, utilization, waiting_time
     parameters.update({'AGENT_REWARD_EPISODE_LIMIT': 0})  # Episode limit counter, default = 0
@@ -113,17 +113,12 @@ def define_production_statistics(parameters):
     statistics.update({"delayed_orders": 0})
     statistics.update({"maquinas_ocupadas": 0})
     statistics.update({"reward": 0})
-    statistics.update({"qnt_setups": 0})
     
     statistics.update({"broken_machines_log": []})
     statistics.update({"delayed_orders_log": []})
     statistics.update({"maquinas_ocupadas_log": []})
     statistics.update({"rewards_log": []})
     statistics.update({"preventive_maintenance_log": []})
-    statistics.update({"qnt_setups_log": []})
-    statistics.update({"mttr_log": {}})
-    statistics.update({"mttf_log": {}})
-    statistics.update({"qnt_ordens_processadas_log": []})
     
     
 
