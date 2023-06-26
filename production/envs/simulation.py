@@ -4,7 +4,7 @@ import numpy as np
 from production.envs.initialize_env import define_production_parameters
 from production.envs.initialize_env import define_production_statistics
 import logging
-from production.envs.machine import Maquinas
+from production.envs.machine import Machines
 from production.envs.weibull import weibull
 from production.envs.order import Order
 from datetime import datetime
@@ -26,89 +26,82 @@ class ProductionEnv(Environment):
         self.env = simpy.Environment()
         self.counter = 0
         self.in_reset = False
-        self.lista_maquinas = []
-        self.lista_ordens = []
+        self.list_machines = []
+        self.list_ordens = []
         
         self.dataset_ordens = pd.read_excel('inputs/dataset_ordens.xlsx')
-        self.dataset_maquinas = pd.read_excel('inputs/dataset_maquinas.xlsx')
-        self.quebra_maquinas = []
-        for i in self.dataset_maquinas["id_maquina"]:
-            self.quebra_maquinas.append(weibull(10,144))
+        self.dataset_machines = pd.read_excel('inputs/dataset_maquinas.xlsx')
+        self.quebra_machines = []
+        for i in self.dataset_machines["id_machine"]:
+            self.quebra_machines.append(weibull(10,144))
         
         # Define os parâmetros de toda a simulação
         self.parameters = define_production_parameters(episode = self.count_episode)
-        self.parameters.update({'qnt_orders': self.dataset_ordens.shape[0]})
-        self.parameters.update({'qnt_machines': self.dataset_maquinas.shape[0]})
+        self.parameters.update({'num_orders': self.dataset_ordens.shape[0]})
+        self.parameters.update({'num_machines': self.dataset_machines.shape[0]})
         
         # Define as estatísticas de toda a simulação
         self.statistics, self.stat_episode = define_production_statistics(parameters=self.parameters)
         
-        for i in self.dataset_maquinas["id_maquina"]:
+        for i in self.dataset_machines["id_machine"]:
             self.statistics["mttr_log"].update({i: []})
             self.statistics["mttf_log"].update({i: []})
             
 
     '''
-    Função que cria as máquinas do sistema produtivo
+    Generate machines in the production system
     '''
         
-    def criar_maquinas(self, actions):
+    def generate_machines(self, actions):
         
         
-        #INCLUIR lista_preventiva_job
-        
-        id_maquina = self.dataset_maquinas["id_maquina"]
-        tempo_corretiva = self.dataset_maquinas["tempo_corretiva"]
-        tempo_preventiva = self.dataset_maquinas["tempo_preventiva"]
-        tempo_vida = self.dataset_maquinas["tempo_vida"]
+        id_machine = self.dataset_machines["id_machine"]
+        corrective_time = self.dataset_machines["corrective_time"]
+        preventive_time = self.dataset_machines["preventive_time"]
+        usefull_time = self.dataset_machines["usefull_time"]
         
         
         dispatching_rule = []
-        if self.parameters["TIPO_DISPATCHING"] == "rule-based":
-            #print(f"Dispatching Rules: {actions['DR_Maquinas']}")
-            dispatching_rule = actions["DR_Maquinas"]
+        if self.parameters["DISPATCHING_TYPE"] == "rule-based":
+            dispatching_rule = actions["DR_machines"]
         else:
             dispatching_rule = [0]*self.parameters['NUM_MACHINES']
         
-        if self.parameters["TIPO_MANUTENCAO"] == "periodic":
-            periodo_manutencao = actions["periodo_manutencao"]
+        if self.parameters["MAINTENANCE_TYPE"] == "periodic":
+            maintenance_period = actions["maintenance_period"]
         else:
-            periodo_manutencao = [0]*self.parameters["NUM_MACHINES"]
+            maintenance_period = [0]*self.parameters["NUM_MACHINES"]
         
         
-        for index, maquina in enumerate(id_maquina):
-            #print(f"Criando Máquina {maquina}")
-            self.lista_maquinas.append(Maquinas(env = self.env,
-                                                id_maquina = maquina,
+        for index, machine in enumerate(id_machine):
+            
+            self.list_machines.append(Machines(env = self.env,
+                                                id_machine = machine,
                                                 statistics = self.statistics,
                                                 parameters = self.parameters,
-                                                tempo_vida = tempo_vida[index],
-                                                tempo_preventiva = tempo_preventiva[index],
-                                                tempo_corretiva = tempo_corretiva[index],
+                                                usefull_time = usefull_time[index],
+                                                preventive_time = preventive_time[index],
+                                                corrective_time = corrective_time[index],
                                                 machine_env = simpy.PriorityResource(self.env),
-                                                periodo_manutencao = int(periodo_manutencao[index]),
+                                                maintenance_period = int(maintenance_period[index]),
                                                 dispatching_rule = dispatching_rule[index]))
         
-        self.parameters["MACHINES"] = self.lista_maquinas
+        self.parameters["MACHINES"] = self.list_machines
           
     '''
-    Função que cria os estados a serem retornados ao agente
+    Generates the state set for the agent
     '''
-    def calcula_estados(self):
-        
-        
-        
-        preventivas = []
-        corretivas = []
-        setup = []
+    def gen_states(self):
+
+        preventives = []
+        correctives = []
         mttr = []
         mttf = []
-        ordens_maquina = []
+
 
         if len(self.statistics["broken_machines_log"]) == 0:
-            preventivas = [0]
-            corretivas = [0]
-            #setup = [0]
+            preventives = [0]
+            correctives = [0]
             mttr = [0]*self.parameters["NUM_MACHINES"]
             mttf = [0]*self.parameters["NUM_MACHINES"]
 
@@ -116,27 +109,24 @@ class ProductionEnv(Environment):
         
         else:
 
-            corretivas = [self.statistics["broken_machines"]]
-            preventivas = [self.statistics["preventive_maintenance"]]
-            #setup = [mean(self.statistics["qnt_setups_log"])]
+            correctives = [self.statistics["broken_machines"]]
+            preventives = [self.statistics["preventive_maintenance"]]
             delayed_orders = [self.statistics["delayed_orders"]]
             
-            for maq in self.lista_maquinas:
+            for maq in self.list_machines:
                 maq.calc_MTTR()
                 maq.calc_MTTF()
-                mttr.append(mean(self.statistics["mttr_log"][maq.id_maquina]))
-                mttf.append(mean(self.statistics["mttf_log"][maq.id_maquina]))
+                mttr.append(mean(self.statistics["mttr_log"][maq.id_machine]))
+                mttf.append(mean(self.statistics["mttf_log"][maq.id_machine]))
 
         
-        
-        # Quantidade de máquinas operando
-        maquinas_operando = [float(self.statistics["maquinas_ocupadas"])]
+
+        operating_machines = [float(self.statistics["operating_machines"])]
         
 
-        states = np.concatenate([maquinas_operando,
-                                 preventivas,
-                                 corretivas,
-                                 #setup,
+        states = np.concatenate([operating_machines,
+                                 preventives,
+                                 correctives,
                                  mttf,
                                  mttr,
                                  delayed_orders])
@@ -146,21 +136,19 @@ class ProductionEnv(Environment):
 
 
     '''
-    Função que printa os estados 
+    Extort states to log 
     '''
-    def calcula_estados_Exportar(self):
+    def export_states(self):
                 
-        preventivas = []
-        corretivas = []
-        #setup = []
+        preventives = []
+        correctives = []
         mttr = []
         mttf = []
-        ordens_maquina = []
+
 
         if len(self.statistics["broken_machines_log"]) == 0:
-            preventivas = [0]
-            corretivas = [0]
-            #setup = [0]
+            preventives = [0]
+            correctives = [0]
             mttr = [0]*self.parameters["NUM_MACHINES"]
             mttf = [0]*self.parameters["NUM_MACHINES"]
 
@@ -168,166 +156,104 @@ class ProductionEnv(Environment):
         
         else:
             
-            corretivas = [self.statistics["broken_machines"]]
-            preventivas = [self.statistics["preventive_maintenance"]]
-            #setup = [mean(self.statistics["qnt_setups_log"])]
+            correctives = [self.statistics["broken_machines"]]
+            preventives = [self.statistics["preventive_maintenance"]]
             delayed_orders = [self.statistics["delayed_orders"]]
             
-            for maq in self.lista_maquinas:
+            for maq in self.list_machines:
                 maq.calc_MTTR()
                 maq.calc_MTTF()
-                mttr.append(mean(self.statistics["mttr_log"][maq.id_maquina]))
-                mttf.append(mean(self.statistics["mttf_log"][maq.id_maquina]))
+                mttr.append(mean(self.statistics["mttr_log"][maq.id_machine]))
+                mttf.append(mean(self.statistics["mttf_log"][maq.id_machine]))
 
         
+
+        operating_machines = [float(self.statistics["operating_machines"])]
         
-        # Quantidade de máquinas operando
-        maquinas_operando = [float(self.statistics["maquinas_ocupadas"])]
-        
-        logging.info(f"Corretivas = {corretivas}")
-        logging.info(f"Preventivas = {preventivas}")
-        #logging.info(f"Setup = {setup}")
-        logging.info(f"Ordens Atrasadas = {delayed_orders}")
-        logging.info(f"Máquinas Operando = {maquinas_operando}")
+        logging.info(f"Correctives = {correctives}")
+        logging.info(f"Preventives = {preventives}")
+        logging.info(f"Delayed Orders = {delayed_orders}")
+        logging.info(f"Operating Machines = {operating_machines}")
         #logging.info(f"MTTR = {mttr}")
         #logging.info(f"MTTF = {mttf}")
 
         
-        
-
-
-
-
-
+    
     '''
-    Cria as ordens de produção do sistema produtivo
+    Generate jobs for the production system
     '''
-    def criar_ordens(self, actions):
+    def generate_jobs(self, actions):
         
-        # Seleciona os parâmetros do excel
+        # Parameters from excel file
         id_material = self.dataset_ordens["id_material"]
-        tipo_material = self.dataset_ordens["tipo_material"]
-        tempo_processamento_maquina1 = self.dataset_ordens["tempo_processamento_maquina1"]
-        tempo_processamento_maquina2 = self.dataset_ordens["tempo_processamento_maquina2"]
-        tempo_processamento_maquina3 = self.dataset_ordens["tempo_processamento_maquina3"]
+        material_type = self.dataset_ordens["material_type"]
+        processing_time = self.dataset_ordens["processing_time"]
         due_date = self.dataset_ordens["due_date"]
 
-        # Seleciona os parâmetros das ações
+        # Parameters from agent actions
 
-        maquina_step1 = []
-        maquina_step2 = []
-        maquina_step3 = []
-        prioridade_m1 = []
-        prioridade_m2 = []
-        prioridade_m3 = []
-        maquinas_operando = 0
+        machine = []
+        priority = []
+        operating_machines = 0
         
-        if self.parameters["TIPO_DISPATCHING"] == "rule-free":
-            prioridade_m1 = actions["prioridades"][:self.parameters["qnt_orders"]]
-            prioridade_m2 = actions["prioridades"][self.parameters["qnt_orders"] : self.parameters["qnt_orders"]*2]
-            prioridade_m3 = actions["prioridades"][self.parameters["qnt_orders"]*2 : self.parameters["qnt_orders"]*3]
-            maquina_step1 = actions["selecao_maquinas1"]
-            maquina_step2 = actions["selecao_maquinas2"]
-            maquina_step3 = actions["selecao_maquinas3"]
-            maquinas_operando = len(pd.DataFrame({"b": actions["selecao_maquinas1"]})["b"].unique())
+        if self.parameters["DISPATCHING_TYPE"] == "rule-free":
+            priority = actions["priorities"]
+            machine = actions["machine_selection"]
+            operating_machines = len(pd.DataFrame({"b": actions["machine_selection"]})["b"].unique())
         else:        
-            maquinas_operando = actions["Operating_Machines"][0]
-            maquina_step1 = [maquinas_operando]*self.parameters["qnt_orders"]
-            maquina_step2 = [maquinas_operando]*self.parameters["qnt_orders"]
-            maquina_step3 = [maquinas_operando]*self.parameters["qnt_orders"]
+            operating_machines = actions["Operating_Machines"][0]
+            machine = [operating_machines]*self.parameters["num_orders"]
+            priority = [operating_machines]*self.parameters["num_orders"]
 
+            
+        # For job-based maintenance
+        job_preventive_list = [False] * self.parameters["num_orders"]
         
-        
-        # Cria as listas de preventivas, para caso de manutenção job-based
-        lista_preventiva_job_stage1 = []
-        lista_preventiva_job_stage2 = []
-        lista_preventiva_job_stage3 = []
-        
-        # Caso seja job-based, alimenta as listas
-        if self.parameters["TIPO_MANUTENCAO"] == "job-based":
-            lista_preventiva_job_stage1 = actions["prev_maint_job"][:self.parameters["qnt_orders"]]
-            lista_preventiva_job_stage2 = actions["prev_maint_job"][self.parameters["qnt_orders"] : self.parameters["qnt_orders"]*2]
-            lista_preventiva_job_stage3 = actions["prev_maint_job"][self.parameters["qnt_orders"]*2 : self.parameters["qnt_orders"]*3]
-        else:
-            lista_preventiva_job_stage1 = [False] * self.parameters["qnt_orders"]
-            lista_preventiva_job_stage2 = [False] * self.parameters["qnt_orders"]
-            lista_preventiva_job_stage3 = [False] * self.parameters["qnt_orders"]
+        if self.parameters["MAINTENANCE_TYPE"] == "job-based":
+            job_preventive_list = actions["prev_maint_job"]
             
                     
-        self.statistics["maquinas_ocupadas"] = maquinas_operando
+        self.statistics["operating_machines"] = operating_machines
         
         for index, ordem in enumerate(id_material):
             
-            maquina_step1a = 0
-            maquina_step2a = 0
-            maquina_step3a = 0
-            prioridade_m1a = 0
-            prioridade_m2a = 0 
-            prioridade_m3a = 0
-            
-            if self.parameters["TIPO_DISPATCHING"] == "rule-free":
-
-                maquina_step1a = self.lista_maquinas[int(maquina_step1[index])]
-                maquina_step2a = self.lista_maquinas[60 + int(maquina_step2[index])]
-                maquina_step3a = self.lista_maquinas[62 + int(maquina_step3[index])]
-                prioridade_m1a = float(prioridade_m1[index])
-                prioridade_m2a = float(prioridade_m2[index])
-                prioridade_m3a = float(prioridade_m3[index])
-
-            else:        
-
-                maquina_step1a = maquinas_operando
-                maquina_step2a = maquinas_operando
-                maquina_step3a = maquinas_operando        
-                prioridade_m1a = maquinas_operando
-                prioridade_m2a = maquinas_operando
-                prioridade_m3a = maquinas_operando
-            
-            self.lista_ordens.append(Order(self.env,
+            self.list_ordens.append(Order(self.env,
                                            id_material = ordem,
-                                           tipo_material = tipo_material[index],
-                                           tempo_processamento_m1 = tempo_processamento_maquina1[index],
-                                           tempo_processamento_m2 = tempo_processamento_maquina2[index],
-                                           tempo_processamento_m3 = tempo_processamento_maquina3[index],
-                                           maquina_step1 = maquina_step1a,
-                                           maquina_step2 = maquina_step2a,
-                                           maquina_step3 = maquina_step3a,
-                                           prioridade_m1 = prioridade_m1a,
-                                           prioridade_m2 = prioridade_m2a,
-                                           prioridade_m3 = prioridade_m3a,
+                                           material_type = material_type[index],
+                                           processing_time = processing_time[index],
+                                           machine = machine[index],
+                                           priority = priority[index],
                                            due_date = due_date[index],
                                            statistics = self.statistics,
                                            parameters= self.parameters,
-                                           manutencao_job_M1 = lista_preventiva_job_stage1[index],
-                                           manutencao_job_M2 = lista_preventiva_job_stage2[index],
-                                           manutencao_job_M3 = lista_preventiva_job_stage3[index]))
+                                           maintenance_job_based = job_preventive_list[index]))
             
         
     def states(self):
         number = 0
         
-        # Quantidade de máquinas operando
+        # Number of operation machines
         number += 1
         
-        # Quantidade de preventivas
+        # Number of Preventives
         number += 1
         
-        # Quantidade de corretivas
+        # Number of correctives 
         number += 1
         
-        # Quantidade de setups
+        # Number of Setups
         #number += 1
         
-        # Quantidade de ordens alocadas por máquina
+        # Number of jobs for each machine 
         #number += self.parameters["NUM_MACHINES"]
         
-        # MTTF por máquina
+        # MTTF for each machine
         number += self.parameters["NUM_MACHINES"]
         
-        # MTTR por máquina
+        # MTTR for each machine
         number += self.parameters["NUM_MACHINES"]
         
-        # Quantidade de ordens atrasadas
+        # Number of delayed jobs 
         number += 1
 
         
@@ -340,56 +266,56 @@ class ProductionEnv(Environment):
 
     def reset(self):
 
-        #print("Criando o ambiente")
-        #self.env = simpy.Environment()
+
         self.statistics["broken_machines_log"] = []
         self.statistics["delayed_orders_log"] = []
-        self.statistics["maquinas_ocupadas_log"] = []
+        self.statistics["operating_machines_log"] = []
         self.statistics["rewards_log"] = []
         self.statistics["preventive_maintenance_log"] = []
-        self.statistics["qnt_setups_log"] = []
+        self.statistics["num_setups_log"] = []
         self.statistics["mttr_log"] = {}
         self.statistics["mttf_log"] = {}
-        for i in self.dataset_maquinas["id_maquina"]:
+        for i in self.dataset_machines["id_machine"]:
             self.statistics["mttr_log"].update({i: []})
             self.statistics["mttf_log"].update({i: []})
-        self.statistics["qnt_ordens_processadas_log"] = []
+        self.statistics["num_processed_orders"] = []
         self.counter = 0
         self.in_reset = True
-        states = self.calcula_estados()
+        states = self.gen_states()
         self.in_reset = False
         return states
     
     def reset_states(self):
         self.statistics["broken_machines"] = 0
         self.statistics["delayed_orders"] = 0
-        self.statistics["maquinas_ocupadas"] = 0
+        self.statistics["operating_machines"] = 0
         self.statistics["reward"] = 0
         self.statistics["preventive_maintenance"] = 0
         
-    def update_historico(self):
+    def update_log(self):
         self.statistics["broken_machines_log"].append(self.statistics["broken_machines"])
         self.statistics["delayed_orders_log"].append(self.statistics["delayed_orders"])
-        self.statistics["maquinas_ocupadas_log"].append(self.statistics["maquinas_ocupadas"])
+        self.statistics["operating_machines_log"].append(self.statistics["operating_machines"])
         self.statistics["rewards_log"].append(self.statistics["reward"])
         self.statistics["preventive_maintenance_log"].append(self.statistics["preventive_maintenance"])
-        self.statistics["qnt_setups_log"].append(self.statistics["qnt_setups"])
+        self.statistics["num_setups_log"].append(self.statistics["num_setups"])
             
-    def calcula_reward(self):
+    def gen_reward(self):
         reward = 0
         reward += -3*self.statistics["broken_machines"]
         reward += -3*self.statistics["delayed_orders"]
-        reward += -1*self.statistics["maquinas_ocupadas"]
+        reward += -1*self.statistics["operating_machines"]
         reward += -1*self.statistics["preventive_maintenance"]
         self.statistics["reward"] = reward
         return reward
     
     def execute(self, actions):
 
-        print(f"<------------------------ Início da Execução {self.counter} ------------------------>")
-        logging.info(f"Reward Atual = {self.statistics['reward']}")
-        self.calcula_estados_Exportar()
-        # Iniciando o setup
+        print(f"<------------------------ Start {self.counter} ------------------------>")
+        logging.info(f"Current Reward = {self.statistics['reward']}")
+        self.export_states()
+        
+        
         reward = None
         terminal = False
         states = None
@@ -397,93 +323,89 @@ class ProductionEnv(Environment):
         
         self.reset_states()
         
+        # Rebooting environment         
         self.env = simpy.Environment()
-        #print("Criando as máquinas")
-        self.lista_maquinas = []
-        self.lista_ordens = []
-        self.criar_maquinas(actions)
-        #print("Criando as ordens")
-        self.criar_ordens(actions)
-        
-        #print("")
-        #print("")
-        
-        #print("")
-        #print("")
 
+        self.list_machines = []
+        self.list_ordens = []
+        self.generate_machines(actions)
+        self.generate_jobs(actions)
         
+    
         
         
         self.env.run(until = self.parameters["MIN_SIMULATION"])
+        
+        delayed = 0
+        finished = 0
+        
+        for order in self.list_ordens:
+            if order.finished == False:
+                delayed +=1
+            else:
+                finished += 1
+        
+        print(f"Total = {delayed + finished} | Delayed = {delayed} | Finished = {finished}")
+        self.statistics["delayed_orders"] = delayed
 
 
-        reward = self.calcula_reward()
-        self.update_historico()
-        states = self.calcula_estados()
+        reward = self.gen_reward()
+        self.update_log()
+        states = self.gen_states()
 
         
         if self.counter == self.parameters["episodes"]:
-        #    print("Last episode action ", datetime.now())
             terminal = True
          
-            for maquina in self.lista_maquinas:
-                logging.info(f" Máquina {maquina.id_maquina} = {maquina.ordem_producao}")
+            for machine in self.list_machines:
+                logging.info(f" Machine {machine.id_machine} = {machine.production_sequence}")
                 logging.info("")
             
             logging.info("")
             logging.info("")
-            logging.info("Máquinas Quebradas")    
+            logging.info("Broken Machines")    
             logging.info(self.statistics["broken_machines_log"])
             logging.info("")
-            logging.info("Ordens Atrasadas")    
+            logging.info("Delayed Orders")    
             logging.info(self.statistics["delayed_orders_log"])
             logging.info("")
-            logging.info("Máquinas Ocupadas")    
-            logging.info(self.statistics["maquinas_ocupadas_log"])
+            logging.info("Operating Machines")    
+            logging.info(self.statistics["operating_machines_log"])
             logging.info("")
-            logging.info("Preventivas Realizadas")    
+            logging.info("Preventive Performed")    
             logging.info(self.statistics["preventive_maintenance_log"])
             logging.info("")
             logging.info("Rewards")    
             logging.info(self.statistics["rewards_log"])
             
 
-        #print("<------------------------ Fim da Execução ------------------------>")        
+        #print("<------------------------ End ------------------------>")        
         
         
 
-        #terminal = True  # Always False if no "natural" terminal state
             
         if terminal:    
             self.parameters.update({"ACTION": actions})
             
 
-        #print(f"Log de Máquinas Quebradas = {self.statistics['broken_machines_log']}")
-        #print(f"Log Manutenções Preventivas: {self.statistics['preventive_maintenance_log']}")
-        #print(f"Log de Rewards = {self.statistics['rewards_log']}")
-        
-        #print(f"states = {states}")
-        
+     
         
         
         return states, terminal, reward
 
 
 
-    '''
-    Função Obrigatória para o Reinforcement Learning.
-    Com base nela o agente cria as ações do modelo.
-    '''
+
     def actions(self):
         
-        # Cria o dicionário das ações. FORMATO MANDATÓRIO 
+
         actions = {}
         
         # Se o tipo de Dispatching for "rule-based"
-        if self.parameters["TIPO_DISPATCHING"] == "rule-based":
+        if self.parameters["DISPATCHING_TYPE"] == "rule-based":
             
             # Seleciona as regras de despacho para as máquinas
-            actions.update({"DR_Maquinas": {"type":'int',
+            actions.update({"DR_machines": {"type":'int',
                                             "shape": self.parameters['NUM_MACHINES'],
                                             "num_values": self.parameters['NUM_DISPATCHING_RULES']}})
 
@@ -491,45 +413,35 @@ class ProductionEnv(Environment):
             # Determina a quantidade de máquinas operando no primeiro estágio
             actions.update({"Operating_Machines": {"type":'int',
                                                    "shape": 1,
-                                                   "num_values": self.parameters['NUM_MACHINES_1_STAGE']}})
+                                                   "num_values": self.parameters['NUM_MACHINES']}})
             
         
         # Se o tipo de Dispatching for "rule-free"
         else:
             
-            # Seleciona as máquinas para produção
-            actions.update({"selecao_maquinas1": {"type":'int',
-                                                  "shape": self.parameters["qnt_orders"],
-                                                  "num_values": self.parameters['NUM_MACHINES_1_STAGE']}})
+            # Select the machine that will produce each job
+            actions.update({"machine_selection": {"type":'int',
+                                                  "shape": self.parameters["num_orders"],
+                                                  "num_values": self.parameters['NUM_MACHINES']}})
 
-            # Seleciona as máquinas do segundo estágio para cada ordem
-            actions.update({"selecao_maquinas2": {"type":'int',
-                                                  "shape": self.parameters["qnt_orders"],
-                                                  "num_values": self.parameters['NUM_MACHINES_2_STAGE']}})
 
-            # Seleciona as máquinas do terceiro estágio para cada ordem
-            actions.update({"selecao_maquinas3": {"type":'int',
-                                                  "shape": self.parameters["qnt_orders"],
-                                                  "num_values": self.parameters['NUM_MACHINES_3_STAGE']}})
             
-            # Seleciona as prioridades em cada máquina        
-            actions.update({"prioridades":  {"type":'float',
-                                             "shape": self.parameters["qnt_orders"]*3}})
+            # Determine job priority        
+            actions.update({"priorities":  {"type":'float',
+                                             "shape": self.parameters["num_orders"]}})
 
         
-        # Se o Tipo de Manutenção for baseado em jobs
-        if self.parameters["TIPO_MANUTENCAO"] == "job-based":
+        # For job-Based Maintenance
+        if self.parameters["MAINTENANCE_TYPE"] == "job-based":
             
-            # Determina se haverá manutenção após cada job
             actions.update({"prev_maint_job": {"type":'bool',
-                                               "shape": self.parameters["qnt_orders"]*3}})
+                                               "shape": self.parameters["num_orders"]}})
         
-        # Se a manutenção for periódica    
         else: 
         
-            actions.update({"periodo_manutencao":   {"type":'int',
+            actions.update({"maintenance_period":   {"type":'int',
                                                     "num_values": 45*24,
-                                                    "shape": self.parameters["qnt_machines"]}})
+                                                    "shape": self.parameters["num_machines"]}})
 
         return actions
     

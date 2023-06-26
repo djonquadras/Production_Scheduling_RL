@@ -8,21 +8,13 @@ class Order():
 
     def __init__(self, env,
                  id_material,
-                 tipo_material,
-                 tempo_processamento_m1,
-                 tempo_processamento_m2,
-                 tempo_processamento_m3,
-                 maquina_step1,
-                 maquina_step2,
-                 maquina_step3,
-                 prioridade_m1,
-                 prioridade_m2,
-                 prioridade_m3,
+                 material_type,
+                 processing_time,
+                 machine,
+                 priority,
                  due_date,
                  statistics, parameters,
-                 manutencao_job_M1 = False,
-                 manutencao_job_M2 = False,
-                 manutencao_job_M3 = False):
+                 maintenance_job_based = False):
         
         ####
         # Parâmetros Gerais
@@ -35,39 +27,31 @@ class Order():
         # Parâmetros das Ordens de Produção
         ####
         self.id_material = id_material
-        self.tipo_material = tipo_material
+        self.material_type = material_type
         self.due_date = due_date
-        self.tempo_processamento_m1 = tempo_processamento_m1
-        self.tempo_processamento_m2 = tempo_processamento_m2
-        self.tempo_processamento_m3 = tempo_processamento_m3
+        self.processing_time = processing_time
         
         ##
         # Seleção da máquina
         ##
         
-        self.maquina_step1 = maquina_step1
-        self.maquina_step2 = maquina_step2
-        self.maquina_step3 = maquina_step3
+        self.machine = machine
             
-        self.prioridade_m1 = prioridade_m1
-        self.prioridade_m2 = prioridade_m2
-        self.prioridade_m3 = prioridade_m3
+        self.priority = priority
         self.sop = 0
         self.eop = 0
-        self.time_processing = tempo_processamento_m1 + tempo_processamento_m2 + tempo_processamento_m3
+        self.time_processing = processing_time
         self.finished = False
         self.env.process(self.order_processing()) # Process started at creation
         self.process_now = 0
-        self.remaining_processing_time = tempo_processamento_m1 + tempo_processamento_m2 + tempo_processamento_m3
+        self.remaining_processing_time = processing_time
         
         ####
         # Parametros de manutenção
         ####
         
         # Job- Based
-        self.manutencao_job_M1 = manutencao_job_M1
-        self.manutencao_job_M2 = manutencao_job_M2
-        self.manutencao_job_M3 = manutencao_job_M3
+        self.maintenance_job_based = maintenance_job_based
         
 
 
@@ -147,8 +131,8 @@ class Order():
     '''
     def return_log(self):
         order = {"order_id": self.id_material,
-                 "machines_sequence": [self.maquina_step1, self.maquina_step2, self.maquina_step3],
-                 "priorities": [self.prioridade_m1, self.prioridade_m2, self.prioridade_m3],
+                 "machine": self.machine,
+                 "priority": self.priority,
                  "sop": self.set_sop,
                  "eop": self.eop,
                  "waiting_time": self.get_total_waiting_time(),
@@ -163,137 +147,80 @@ class Order():
     '''
     def order_processing(self):
         
-        #print(f"Iniciando processamento da ordem {self.id_material} no minuto {self.env.now}")
-        #Setup Parameters for simulation
-        machines = []
-        # Caso a produção seja "Rule-Free"
-        if self.parameters["TIPO_DISPATCHING"] == "rule-free":
-            machines = [self.maquina_step1, self.maquina_step2, self.maquina_step3]
-
-        else:
-            machines = [0,0,0]
-        
-        processing_time = [self.tempo_processamento_m1, self.tempo_processamento_m2, self.tempo_processamento_m3]        
-        priorities = [self.prioridade_m1, self.prioridade_m2, self.prioridade_m3]
-
-          
-        
-        manutencao_jobs = [self.manutencao_job_M1, self.manutencao_job_M2, self.manutencao_job_M3]
         self.set_sop()
         
-        lista_maquinas_dr = []
+        machine = self.machine
+        priority = self.priority
 
-        if self.parameters["TIPO_DISPATCHING"] == "rule-based":
-            NUM_1 = self.parameters["NUM_MACHINES_1_STAGE"]
-            NUM_2 = self.parameters["NUM_MACHINES_1_STAGE"] + self.parameters["NUM_MACHINES_2_STAGE"]
-            NUM_3 = self.parameters["NUM_MACHINES_1_STAGE"] + self.parameters["NUM_MACHINES_2_STAGE"] + self.parameters["NUM_MACHINES_3_STAGE"]
+        # If the optimization is rule-free
+        if self.parameters["DISPATCHING_TYPE"] == "rule-based":
+
+            min_queue_size = 0
+                
+            for position, mach in enumerate(self.parameters["MACHINES"]):
+                
+                if position == 0:
+                    min_queue_size = len(mach.machine_env.queue)
+                    machine = mach
+
+                else:
+                    if len(mach.machine_env.queue) < min_queue_size:
+                        min_queue_size = len(mach.machine_env.queue)
+                        machine = mach
+            priority = self.priority(machine.dispatching_rule, self.processing_time)
+        else:
+            machine = self.parameters["MACHINES"][machine]    
+
+        # Requires the selected machine
+        with machine.machine_env.request(priority = priority) as req:
             
-            quantidade_maquinas = self.prioridade_m1
-            if self.prioridade_m1 == 0:
-                quantidade_maquinas = 1
-            else:
-                quantidade_maquinas = self.prioridade_m1
-            machines_1 = self.parameters["MACHINES"][:quantidade_maquinas]
-            machines_2 = self.parameters["MACHINES"][NUM_1:NUM_2]
-            machines_3 = self.parameters["MACHINES"][NUM_2:NUM_3]
-            lista_maquinas_dr = [machines_1, machines_2, machines_3]
-
-        
-        
-        
-        while not self.finished:
-            
-            machine_selecionada = 0
-            # Seleciona a máquina com menor fila para caso seja Rule-Based
-            if self.parameters["TIPO_DISPATCHING"] == "rule-based":
-                tam_fila_anterior = 0
-                
-                #print(f"Lista de máquinas: {lista_maquinas_dr[self.process_now]}")
-                for posicao, machine in enumerate(lista_maquinas_dr[self.process_now]):
-                    
-                    if posicao == 0:
-                        tam_fila_anterior = len(machine.machine_env.queue)
-                        machines[self.process_now] = machine
-                        machine_selecionada = machine
-                    else:
-                        if len(machine.machine_env.queue) < tam_fila_anterior:
-                            tam_fila_anterior = len(machine.machine_env.queue)
-                            machines[self.process_now] = machine
-                            machine_selecionada = machine_selecionada
-                
-                #print(f"Step Maquina Selecionada: {machine_selecionada}")
-                priorities[self.process_now] = self.priority(machine_selecionada.dispatching_rule, processing_time[self.process_now])
-                
-
-            if self.finished:
-                break            
-
-            
-            # Requisita a máquina com a prioridade determinada
-            #print(f"Tamanho da fila na máquina {machines[self.process_now].id_maquina}: {len(machines[self.process_now].machine_env.queue)}")        
-            with machines[self.process_now].machine_env.request(priority = priorities[self.process_now]) as req:
-                yield req
-                #print(f"Ordem {self.id_material} na máquina {machines[self.process_now].id_maquina}")
-                
-                #print(f"Produzindo a ordem {self.id_material} na máquina {machines[self.process_now].id_maquina}")
-                
-                # Adiciona a ordem nas estatísticas da máquina
-                machines[self.process_now].qnt_ordens_processadas += 1
-                machines[self.process_now].ordem_producao.append(self.id_material)
-                machines[self.process_now].horarios.append(self.env.now)
-                
+            yield req
                         
-                # Caso o tipo da ordem anterior seja diferente do tipo atual
-                if machines[self.process_now].prev_material_type != self.tipo_material:
+            # Add to statistics
+            machine.num_processed_orders += 1
+            machine.production_sequence.append(self.id_material)
+            machine.times.append(self.env.now)
+            
                     
-                    # Adiciona as estatísticas de setup
-                    machines[self.process_now].ordem_producao.append("Setup")
-                    machines[self.process_now].horarios.append(self.env.now)
-                    machines[self.process_now].qnt_setup += 1
-                    self.statistics["qnt_setups"] += 1
-                    
-                    # Realiza o setup
-                    yield self.env.timeout(machines[self.process_now].tempo_setup)
-                    
-                    # Atualiza o tipo de material anterior
-                    machines[self.process_now].set_new_material_tipe(self.tipo_material)
+            # Setup if necessary
+            if machine.prev_material_type != self.material_type:
                 
-                # Começa a produção da ordem
-                yield self.env.timeout(processing_time[self.process_now])
+                # Add to Statistics
+                machine.production_sequence.append("Setup")
+                machine.times.append(self.env.now)
+                machine.num_setup += 1
+                self.statistics["num_setups"] += 1
                 
-                # Diminui a vida útil da máquina
-                machines[self.process_now].remaining_usefull_life -= processing_time[self.process_now]
+                # Setup
+                yield self.env.timeout(machine.setup_time)
+                
+                # Update last product type
+                machine.set_new_material_tipe(self.material_type)
+            
+            # Start Processing
+            yield self.env.timeout(self.processing_time)
+            
+            # Increase machine degradation 
+            machine.remaining_usefull_life -= self.processing_time
 
-                # Se o tempo útil da máquina acabar, indicar que está quebrada
-                if machines[self.process_now].remaining_usefull_life <= 0:
-                    self.env.process(machines[self.process_now].corr_maintenance())
-                    
-                # Verifica se a máquina terá manutenção após o job
-                if self.parameters["TIPO_MANUTENCAO"] == "job-based":
-                    if manutencao_jobs[self.process_now]: 
-                        self.env.process(machines[self.process_now].jobs_prev_maintenance())
-
-                # Diminui o remaining processing time
-                self.remaining_processing_time -= processing_time[self.process_now]
+            # If machine is broken, start corrective maintenance
+            if machine.remaining_usefull_life <= 0:
+                self.env.process(machine.corr_maintenance())
                 
-                # Confere se é a última pare do processo
-                if self.process_now == 2:
+            # Check if job has maintenance after processing when maintenance is job-based
+            if self.parameters["MAINTENANCE_TYPE"] == "job-based":
+                if self.maintenance_job_based: 
+                    self.env.process(machine.jobs_prev_maintenance())
+
+          
+               
+            # Statistics
+            self.set_eop()
+            #if self.due_date < self.env.now:
+            #    self.statistics["delayed_orders"] += 1
                     
-                    # Adiciona as estatísticas
-                    self.set_eop()
-                    if self.due_date < self.env.now:
-                        self.statistics["delayed_orders"] += 1
+            self.finished = True
                         
-                    # Indica que a ordem foi finalizada
-                    self.finished = True
-                    break
-                
-                # Se não for a última etapa, avança para a próxima
-                self.process_now = self.process_now + 1
-                
-        #print(f"Sequencia para {self.id_material}: [{machines[0].id_maquina}, {machines[1].id_maquina}, {machines[2].id_maquina}] - Prioridades: [{round(priorities[0], 3)}, {round(priorities[1],3)}, {round(priorities[2],3)}]")
-        # Retorna as estatística na etapa final
-        if self.parameters["TERMINAL"]:
-            self.statistics['orders_done'].append(self.return_log(self))
+            self.statistics['orders_done'].append(self.id_material)
         
         

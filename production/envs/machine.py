@@ -2,79 +2,82 @@
 import simpy
 import numpy as np
 
-class Maquinas():
+class Machines():
     agent = None
 
     def __init__(self, env,
-                 id_maquina,
+                 id_machine,
                  statistics,
                  parameters,
-                 tempo_vida,
-                 tempo_preventiva,
-                 tempo_corretiva,
+                 usefull_time,
+                 preventive_time,
+                 corrective_time,
                  machine_env,
                  dispatching_rule = 0,
-                 periodo_manutencao = 999999):
+                 maintenance_period = 999999):
+        
         self.dispatching_rule = dispatching_rule
         self.statistics = statistics
         self.parameters = parameters
         self.env = env
-        self.id_maquina = id_maquina
+        self.id_machine = id_machine
         self.broken = False
         self.prev_material_type = None
-        self.tempo_setup = 40
-        self.tempo_vida = tempo_vida
-        self.periodo_manutencao = periodo_manutencao
-        self.tempo_preventiva = tempo_preventiva
-        self.tempo_corretiva = tempo_corretiva
+        self.setup_time = 0.75
+        self.usefull_time = usefull_time
+        self.maintenance_period = maintenance_period
+        self.preventive_time = preventive_time
+        self.corrective_time = corrective_time
         self.env.process(self.prev_maintenance()) # Process started at creation
-#        self.env.process(self.corr_maintenance()) # Process started at creation
-#        self.env.process(self.jobs_prev_maintenance()) # Process started at creation
-        self.remaining_usefull_life = tempo_vida
-        self.tipo_manutencao = self.parameters['TIPO_MANUTENCAO']
+
+        self.remaining_usefull_life = usefull_time
+        self.maintenance_type = self.parameters['MAINTENANCE_TYPE']
         self.machine_env = machine_env
-        self.ordem_producao = []
-        self.horarios = []
-        self.horario_ultima_preventiva = 0
+        self.production_sequence = []
+        self.times = []
+        self.last_preventive_time = 0
         self.in_job_preventive = False
-        self.qnt_preventivas = 0
-        self.qnt_corretivas = 0
-        self.qnt_setup = 0
+        self.num_preventives = 0
+        self.num_correctives = 0
+        self.num_setup = 0
         self.mttr = 0
         self.mttf = 0
-        self.qnt_ordens_processadas = 0
+        self.num_processed_orders = 0
 
     '''
-    Calcula o Mean Time To Repair (MTTR)
+    Mean Time To Repair (MTTR)
     '''
     def calc_MTTR(self):
-        qnt_reparos = self.qnt_preventivas + self.qnt_corretivas
-        if qnt_reparos == 0:
-            self.statistics["mttr_log"][self.id_maquina].append(0)
+        
+        num_maintenance = self.num_preventives + self.num_correctives
+        
+        if num_maintenance == 0:
+        
+            self.statistics["mttr_log"][self.id_machine].append(0)
             return 0
-        tempo_total = self.parameters["MIN_SIMULATION"]
-        mttr = tempo_total/qnt_reparos
+        
+        total_time = self.parameters["MIN_SIMULATION"]
+        mttr = total_time/num_maintenance
         self.mttr = mttr
-        self.statistics["mttr_log"][self.id_maquina].append(mttr)
+        self.statistics["mttr_log"][self.id_machine].append(mttr)
         return mttr
         
     '''
-    Calcula o Mean Time To Failure (MTTF)
+    Mean Time To Failure (MTTF)
     '''
     def calc_MTTF(self):
-        qnt_quebras = self.qnt_corretivas
-        if qnt_quebras == 0:
-            self.statistics["mttf_log"][self.id_maquina].append(0)
+        num_breaks = self.num_correctives
+        
+        if num_breaks == 0:
+            self.statistics["mttf_log"][self.id_machine].append(0)
             return 0
-        tempo_total = self.parameters["MIN_SIMULATION"]
-        mttf = tempo_total/qnt_quebras
+        total_time = self.parameters["MIN_SIMULATION"]
+        mttf = total_time/num_breaks
         self.mttf = mttf
-        self.statistics["mttf_log"][self.id_maquina].append(mttf)
+        self.statistics["mttf_log"][self.id_machine].append(mttf)
         return mttf
     
-    '''
-    Muda o tipo de material antigo para o tipo novo
-    '''
+
     def set_new_material_tipe(self, new_type):
         self.prev_material_type = new_type
 
@@ -82,92 +85,93 @@ class Maquinas():
     
     
     '''
-    Código para Manutenção Preventiva
+    Preventive Maintenance
     '''        
     def prev_maintenance(self):
         
-        # Ocorre continuamene
+
         while True:
             
-            # Caso o tipo de manutenção se "job-based", será realizado outro tipo de manutenção    
-            if self.tipo_manutencao == "job-based":
+            # If maintenance type equals to "job-based", break
+            if self.maintenance_type == "job-based":
                 break
             
-            # Aguarda até o momento da próxima manutenção
-            yield self.env.timeout(self.periodo_manutencao)
+            # Wait for the maintenance time
+            yield self.env.timeout(self.maintenance_period)
             
-            # Requisita a máquina com uma prioridade que coloque na frente da fila
+            # Request machine with high priority
             with self.machine_env.request(priority = -9999998) as req:
                 yield req
                 
-                # Salva as estatísticas da manutenção
+                # Statistics
                 self.statistics["preventive_maintenance"] += 1
-                self.qnt_preventivas += 1
-                self.ordem_producao.append("Preventiva")
-                self.horarios.append(self.env.now)
+                self.num_preventives += 1
+                self.production_sequence.append("Preventive")
+                self.times.append(self.env.now)
                 
-                # Realiza a manutenção
-                yield self.env.timeout(self.tempo_preventiva)
+                # Maintin
+                yield self.env.timeout(self.preventive_time)
                 
-                # Atualiza o tempo de vida restante
-                self.remaining_usefull_life = self.tempo_vida
+                # Update remaining usefull time
+                self.remaining_usefull_life = self.usefull_time
                 
-                # Determina o horário da última manutenção
-                self.horario_ultima_preventiva = self.env.now
+                # Update last maintenance time
+                self.last_preventive_time = self.env.now
 
 
     '''
-    Código para Manutenção Corretiva
+    Corrective Maintenance
     '''                 
     def corr_maintenance(self):
         
-        # Atualiza a estatística de máquinas quebradas
-        self.statistics["broken_machines"] += 1
+        # Statistics
         
-        # Requisita a máquina com uma prioridade que coloque na frente da fila
+        
+        # Requests the machine with high pripority
         with self.machine_env.request(priority = -9999999) as req:
             yield req
             
-            # Salva as estatísticas da manutenção
-            self.ordem_producao.append("Corretiva")
-            self.qnt_corretivas += 1 
-            self.horarios.append(self.env.now)
+            # Statistics 
+            self.production_sequence.append("Corrective")
+            self.num_correctives += 1 
+            self.times.append(self.env.now)
+            self.statistics["broken_machines"] += 1
             
-            # Realiza a manutenção
-            yield self.env.timeout(self.tempo_corretiva)
+            # Maintain
+            yield self.env.timeout(self.corrective_time)
             
-            # Atualiza o tempo de vida restante
-            self.remaining_usefull_life = self.tempo_vida
+            # Update remaining usefull time 
+            self.remaining_usefull_life = self.usefull_time
             
-            # Atualiza o estado da máquina
+            # Update machine state
             self.broken = False
     
 
                     
     '''
-    Código para Manutenção Preventiva Baseada em Jobs
+    Job-Based Preventive Maintenance
     '''        
     def jobs_prev_maintenance(self):
         
             
-        # Requisita a máquina com uma prioridade que coloque na frente da fila
+        # Requests machine with high priority
         with self.machine_env.request(priority = -9999998) as req:
             yield req
             
-            # Salva as estatísticas da manutenção
+            # Statistics
             self.statistics["preventive_maintenance"] += 1
-            self.qnt_preventivas +=1 
-            self.ordem_producao.append("Preventiva")
-            self.horarios.append(self.env.now)
+            self.num_preventives +=1 
+            self.production_sequence.append("Preventive")
+            self.times.append(self.env.now)
             
-            # Realiza a manutenção
-            yield self.env.timeout(self.tempo_preventiva)
+            # Maintain
+            yield self.env.timeout(self.preventive_time)
             
-            # Atualiza o tempo de vida restante
-            self.remaining_usefull_life = self.tempo_vida
+            # Update remaining usefull time
+            self.remaining_usefull_life = self.usefull_time
             
-            # Determina o horário da última manutenção
-            self.horario_ultima_preventiva = self.env.now
+            # Update last maintenance time
+            self.last_preventive_time = self.env.now
             
-            # Tira do Status de Manutenção Preventiva
+            # Update machine state
             self.in_job_preventive = False

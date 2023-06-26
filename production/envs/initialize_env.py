@@ -15,13 +15,11 @@ EXPORT_FREQUENCY = 10 ** 3  # Number of steps between csv-export of log-files
 EXPORT_NO_LOGS = False  # Turn on/off export of log-files
 
 NUM_DISPATCHING_RULES = 6
-NUM_MACHINES_1_STAGE = 59
-NUM_MACHINES_2_STAGE = 3
-NUM_MACHINES_3_STAGE = 4
-TIPO_DISPATCHING = "rule-free" # Options: "rule-free" or "rule-based"
-TIPO_MANUTENCAO = "periodic" # Options: "periodic" or "job-based"
+NUM_MACHINES = 59
+DISPATCHING_TYPE = "rule-free" # Options: "rule-free" or "rule-based"
+MAINTENANCE_TYPE = "periodic" # Options: "periodic" or "job-based"
 
-MIN_SIMULATION = 28*24
+MIN_SIMULATION = 7*24
 EPISODES = 100
 
 
@@ -40,8 +38,8 @@ def define_production_parameters(episode):
     parameters.update({'time_end': 0.0})
     
     parameters.update({'NUM_DISPATCHING_RULES': NUM_DISPATCHING_RULES})
-    parameters.update({'TIPO_DISPATCHING': TIPO_DISPATCHING})
-    parameters.update({'TIPO_MANUTENCAO': TIPO_MANUTENCAO})
+    parameters.update({'DISPATCHING_TYPE': DISPATCHING_TYPE})
+    parameters.update({'MAINTENANCE_TYPE': MAINTENANCE_TYPE})
     parameters.update({"MACHINES": []})
 
 
@@ -69,18 +67,7 @@ def define_production_parameters(episode):
     parameters.update({"MIN_SIMULATION" : MIN_SIMULATION})
     
     # Number of machines in the 1st stage of the machine shop
-    parameters.update({'NUM_MACHINES_1_STAGE': NUM_MACHINES_1_STAGE})
-    
-    # Number of machines in the 2nd stage of the machine shop  
-    parameters.update({'NUM_MACHINES_2_STAGE':  NUM_MACHINES_2_STAGE})
-    
-    # Number of machines in the 3rd stage of the machine shop  
-    parameters.update({'NUM_MACHINES_3_STAGE':  NUM_MACHINES_3_STAGE})
-    parameters.update({"NUM_MACHINES": NUM_MACHINES_1_STAGE + NUM_MACHINES_2_STAGE + NUM_MACHINES_3_STAGE})  
-    
-    # Total number of machines in the machine shop
-    parameters.update({'NUM_MACHINES': parameters['NUM_MACHINES_1_STAGE'] + parameters['NUM_MACHINES_2_STAGE'] + parameters['NUM_MACHINES_3_STAGE']})
-
+    parameters.update({'NUM_MACHINES': NUM_MACHINES})
     parameters.update({"TERMINAL": False})
 
 
@@ -111,19 +98,19 @@ def define_production_statistics(parameters):
     statistics.update({"broken_machines": 0})
     statistics.update({"preventive_maintenance" : 0})
     statistics.update({"delayed_orders": 0})
-    statistics.update({"maquinas_ocupadas": 0})
+    statistics.update({"operating_machines": 0})
     statistics.update({"reward": 0})
-    statistics.update({"qnt_setups": 0})
+    statistics.update({"num_setups": 0})
     
     statistics.update({"broken_machines_log": []})
     statistics.update({"delayed_orders_log": []})
-    statistics.update({"maquinas_ocupadas_log": []})
+    statistics.update({"operating_machines_log": []})
     statistics.update({"rewards_log": []})
     statistics.update({"preventive_maintenance_log": []})
-    statistics.update({"qnt_setups_log": []})
+    statistics.update({"num_setups_log": []})
     statistics.update({"mttr_log": {}})
     statistics.update({"mttf_log": {}})
-    statistics.update({"qnt_ordens_processadas_log": []})
+    statistics.update({"num_processed_orders": []})
     
     
 

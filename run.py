@@ -6,13 +6,10 @@ import log
 import logging
 import sys
 
-logging.info('<-------------------- INÍCIO DA EXECUÇÃO -------------------->')
+logging.info('<-------------------- Start -------------------->')
 
 
 timesteps = 100  # Set time steps per episode
-#episodes = 10 ** 3  # Set number of episodes
-
-#timesteps = 2  # Set time steps per episode
 episodes = 1000 # Set number of episodes
 
 logging.info(f'Time Steps: {timesteps}')
@@ -30,4 +27,4 @@ environment_production.agents = runner.agent
 # Run training
 runner.run(num_episodes = episodes)
 
-logging.info('<---------------------- FIM DA EXECUÇÃO --------------------->')
+logging.info('<---------------------- End --------------------->')
