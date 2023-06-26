@@ -6,8 +6,8 @@ Simulation and otimization for a Industrial Textil Procuditon System using Reinf
 
 The simulation model covers the following features (production.envs.initialize_env.py):
 
-- **Machines:** the system is formed by three production stages, with 60, 3 and 2 machines in each stage respectively. 
-- **Orders:** explain here the jobs, such as job variants
+- **Machines:** the system is formed by 59 parallel machines. 
+- **Orders:** To do.
 
 The **Reinforcement Learning** is based on the Tensorforce library. Problem-specific configurations for the order dispatching task are the following (initialize_env.py):
 
