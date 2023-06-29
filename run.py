@@ -9,8 +9,8 @@ import sys
 logging.info('<-------------------- Start -------------------->')
 
 
-timesteps = 100  # Set time steps per episode
-episodes = 1000 # Set number of episodes
+timesteps = 31  # Set time steps per episode
+episodes = 100 # Set number of episodes
 
 logging.info(f'Time Steps: {timesteps}')
 logging.info(f'Episodes: {episodes}')

@@ -20,8 +20,10 @@ DISPATCHING_TYPE = "rule-free" # Options: "rule-free" or "rule-based"
 MAINTENANCE_TYPE = "periodic" # Options: "periodic" or "job-based"
 
 MIN_SIMULATION = 7*24
-EPISODES = 100
 
+
+TIMESTEPS = 31
+EPISODES = 100
 
 PATH_TIME = "log/" + datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -34,6 +36,7 @@ def define_production_parameters(episode):
     parameters.update(({'SEED': 10}))
     random.seed(parameters['SEED'] + episode)
     parameters.update({"episodes": EPISODES})
+    parameters.update({"timesteps": TIMESTEPS})
 
     parameters.update({'time_end': 0.0})
     
@@ -41,6 +44,8 @@ def define_production_parameters(episode):
     parameters.update({'DISPATCHING_TYPE': DISPATCHING_TYPE})
     parameters.update({'MAINTENANCE_TYPE': MAINTENANCE_TYPE})
     parameters.update({"MACHINES": []})
+    parameters.update({"ORDERS": []})
+    parameters.update({"NUM_ORDERS": []})
 
 
 
@@ -101,6 +106,8 @@ def define_production_statistics(parameters):
     statistics.update({"operating_machines": 0})
     statistics.update({"reward": 0})
     statistics.update({"num_setups": 0})
+    statistics.update({"daily_production": 0})
+    statistics.update({'products_arrivals': 0})
     
     statistics.update({"broken_machines_log": []})
     statistics.update({"delayed_orders_log": []})
@@ -108,8 +115,29 @@ def define_production_statistics(parameters):
     statistics.update({"rewards_log": []})
     statistics.update({"preventive_maintenance_log": []})
     statistics.update({"num_setups_log": []})
+    
+    statistics.update({"broken_machines_EXPORT": []})
+    statistics.update({"delayed_orders_EXPORT": []})
+    statistics.update({"operating_machines_EXPORT": []})
+    statistics.update({"rewards_EXPORT": []})
+    statistics.update({"preventive_maintenance_EXPORT": []})
+    statistics.update({"num_setups_EXPORT": []})
+    statistics.update({"round_EXPORT": []})
+    statistics.update({"daily_production_EXPORT": []})
+    statistics.update({"episodes_counter_log": []})
+    
+    statistics.update({"NUM_ORDERS_log": []})
+    statistics.update({"broken_reward": []})
+    statistics.update({"productivity_reward": []})
+    statistics.update({"operating_machines_reward": []})
+    
+    
+    
+    
+    
     statistics.update({"mttr_log": {}})
     statistics.update({"mttf_log": {}})
+    statistics.update({"remaining_usefull_life": {}})
     statistics.update({"num_processed_orders": []})
     
     
